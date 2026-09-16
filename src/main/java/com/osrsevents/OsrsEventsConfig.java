@@ -1,0 +1,46 @@
+package com.osrsevents;
+
+import net.runelite.client.config.Config;
+import net.runelite.client.config.ConfigGroup;
+import net.runelite.client.config.ConfigItem;
+
+@ConfigGroup(OsrsEventsConfig.GROUP)
+public interface OsrsEventsConfig extends Config
+{
+	String GROUP = "osrs-events";
+
+	@ConfigItem(
+		keyName = "enabled",
+		name = "Send completions",
+		description = "Report detected drops to osrs-events so matching squares and tiles get claimed",
+		warning = "This feature submits your IP address to a 3rd-party server not controlled or verified by RuneLite developers",
+		position = 0
+	)
+	default boolean enabled()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "token",
+		name = "Plugin code",
+		description = "The code from your settings page on osrs-events",
+		secret = true,
+		position = 1
+	)
+	default String token()
+	{
+		return "";
+	}
+
+	@ConfigItem(
+		keyName = "serverUrl",
+		name = "Server",
+		description = "Only change this when testing against another environment",
+		position = 2
+	)
+	default String serverUrl()
+	{
+		return "https://osrs-events.com";
+	}
+}

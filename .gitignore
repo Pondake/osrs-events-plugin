@@ -1,0 +1,17 @@
+.gradle
+build
+.idea/
+.project
+.settings/
+.classpath
+nbactions.xml
+nb-configuration.xml
+nbproject/
+*.class
+
+# Login credentials written by the Jagex Launcher for dev clients
+credentials.properties
+
+# Backlog hoort niet in deze repo
+docs/backlog.md
+BACKLOG.md
