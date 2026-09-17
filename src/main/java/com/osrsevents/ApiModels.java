@@ -28,12 +28,22 @@ final class ApiModels
 		String mode;
 		String rsn;
 		List<EventInfo> events;
+		List<Verdict> reviews;
 		List<String> watch;
 	}
 
 	static class EventInfo
 	{
 		List<Object> targets;
+	}
+
+	static class Verdict
+	{
+		String id;
+		String label;
+		@SerializedName("event_title")
+		String eventTitle;
+		String status;
 	}
 
 	static class CompletionResponse

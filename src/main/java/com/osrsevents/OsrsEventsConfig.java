@@ -54,4 +54,37 @@ public interface OsrsEventsConfig extends Config
 	{
 		return false;
 	}
+
+	@ConfigItem(
+		keyName = "chatStatus",
+		name = "Chat: connection",
+		description = "Say in chat whether the plugin is connected, and what is wrong when it is not",
+		position = 4
+	)
+	default boolean chatStatus()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "chatClaims",
+		name = "Chat: claims",
+		description = "Say in chat when a drop or kill claims a square or tile",
+		position = 5
+	)
+	default boolean chatClaims()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "chatVerdicts",
+		name = "Chat: approvals",
+		description = "Say in chat when a host approves or rejects one of your claims",
+		position = 6
+	)
+	default boolean chatVerdicts()
+	{
+		return true;
+	}
 }

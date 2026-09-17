@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -76,6 +77,8 @@ public class OsrsEventsPlugin extends Plugin
 	private volatile boolean rejected;
 	private int ticks;
 	private boolean loginPending = true;
+	private final Set<String> seenVerdicts = new HashSet<>();
+	private boolean verdictsSeeded;
 
 	private static final class Pending
 	{
@@ -94,7 +97,7 @@ public class OsrsEventsPlugin extends Plugin
 		if (client.getGameState() == GameState.LOGGED_IN)
 		{
 			loginPending = false;
-			refreshWatch(true);
+			refreshWatch(config.chatStatus());
 		}
 	}
 
@@ -103,6 +106,8 @@ public class OsrsEventsPlugin extends Plugin
 	{
 		watch = Collections.emptySet();
 		queue.clear();
+		seenVerdicts.clear();
+		verdictsSeeded = false;
 		rejected = false;
 	}
 
@@ -131,7 +136,7 @@ public class OsrsEventsPlugin extends Plugin
 
 		rejected = false;
 		watch = Collections.emptySet();
-		refreshWatch(true);
+		refreshWatch(config.chatStatus());
 	}
 
 	@Subscribe
@@ -146,7 +151,7 @@ public class OsrsEventsPlugin extends Plugin
 		else if (state == GameState.LOGGED_IN && loginPending)
 		{
 			loginPending = false;
-			refreshWatch(true);
+			refreshWatch(config.chatStatus());
 		}
 	}
 
@@ -260,9 +265,14 @@ public class OsrsEventsPlugin extends Plugin
 				ApiModels.EventsResponse events = api.parse(body, ApiModels.EventsResponse.class);
 				watch = events == null || events.watch == null ? Collections.emptySet() : new HashSet<>(events.watch);
 				log.debug("osrs-events watching {} names", watch.size());
-				if (announce && events != null)
+				if (events != null)
 				{
-					announceConnection(events);
+					announceVerdicts(events.reviews);
+
+					if (announce)
+					{
+						announceConnection(events);
+					}
 				}
 				return;
 			}
@@ -288,6 +298,28 @@ public class OsrsEventsPlugin extends Plugin
 				}
 			}
 		});
+	}
+
+	/** The first list after a start is only remembered: old verdicts are not news. */
+	private void announceVerdicts(List<ApiModels.Verdict> reviews)
+	{
+		if (reviews == null)
+		{
+			return;
+		}
+
+		for (ApiModels.Verdict verdict : reviews)
+		{
+			if (verdict.id == null || !seenVerdicts.add(verdict.id) || !verdictsSeeded || !config.chatVerdicts())
+			{
+				continue;
+			}
+
+			String label = verdict.label == null ? "Your claim" : verdict.label;
+			chat(label + " in " + verdict.eventTitle + ("APPROVED".equals(verdict.status) ? " was approved." : " was rejected."));
+		}
+
+		verdictsSeeded = true;
 	}
 
 	private void announceConnection(ApiModels.EventsResponse events)
@@ -388,6 +420,11 @@ public class OsrsEventsPlugin extends Plugin
 
 	private void announce(ApiModels.Claim claim)
 	{
+		if (!config.chatClaims())
+		{
+			return;
+		}
+
 		String state = "PENDING".equals(claim.status) ? " (waiting for review)" : "";
 		String label = claim.label != null ? claim.label : claim.name;
 		chat("Claimed " + label + " in " + claim.eventTitle + state);
