@@ -1,6 +1,7 @@
 package com.osrsevents;
 
 import com.google.inject.Provides;
+import java.awt.Color;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
@@ -8,11 +9,15 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
@@ -24,6 +29,7 @@ import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.chat.ChatMessageBuilder;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
@@ -46,6 +52,17 @@ import net.runelite.http.api.loottracker.LootRecordType;
 public class OsrsEventsPlugin extends Plugin
 {
 	private static final String COLLECTION_LOG_PREFIX = "New item added to your collection log:";
+	private static final Pattern KILL_COUNT = Pattern.compile("Your (?<name>.+) (kill|chest|completion) count is: ?(?<count>[\\d,]+)");
+	private static final int MAX_CONTEXT_ITEMS = 40;
+
+	// Amber is the site's own colour; the rest keep both chat backgrounds readable.
+	private static final Color BRAND = new Color(0xFE9A00);
+	private static final Color SUBJECT = new Color(0xFFE0A0);
+	private static final Color EVENT = new Color(0x7FD4FF);
+	private static final Color BODY = new Color(0xEDEDED);
+	private static final Color MUTED = new Color(0xAAAAAA);
+	private static final Color GOOD = new Color(0x4CD964);
+	private static final Color BAD = new Color(0xFF6B6B);
 	/** Client ticks (20ms) without mouse or keyboard before the refresh backs off. */
 	private static final int IDLE_CLIENT_TICKS = 15_000;
 	private static final int IDLE_REFRESH_SECONDS = 600;
@@ -79,6 +96,7 @@ public class OsrsEventsPlugin extends Plugin
 	private volatile boolean rejected;
 	private int ticks;
 	private int retryTicks;
+	private final Map<String, Integer> killCounts = new HashMap<>();
 	private boolean loginPending = true;
 	private final Set<String> seenVerdicts = new HashSet<>();
 	private boolean verdictsSeeded;
@@ -110,6 +128,7 @@ public class OsrsEventsPlugin extends Plugin
 		watch = Collections.emptySet();
 		queue.clear();
 		seenVerdicts.clear();
+		killCounts.clear();
 		verdictsSeeded = false;
 		rejected = false;
 	}
@@ -187,11 +206,13 @@ public class OsrsEventsPlugin extends Plugin
 	public void onNpcLootReceived(NpcLootReceived event)
 	{
 		NPC npc = event.getNpc();
+		ApiModels.Context context = context("npc_kill", npc, event.getItems());
+
 		if (npc != null)
 		{
-			report("npc_kill", npc.getName(), 1);
+			report("npc_kill", npc.getName(), 1, context);
 		}
-		reportItems(event.getItems());
+		reportItems(event.getItems(), context);
 	}
 
 	@Subscribe
@@ -202,7 +223,7 @@ public class OsrsEventsPlugin extends Plugin
 		{
 			return;
 		}
-		reportItems(event.getItems());
+		reportItems(event.getItems(), context("loot", null, event.getItems()));
 	}
 
 	@Subscribe
@@ -214,13 +235,21 @@ public class OsrsEventsPlugin extends Plugin
 		}
 
 		String message = event.getMessage().replaceAll("<[^>]*>", "");
+
+		Matcher killCount = KILL_COUNT.matcher(message);
+		if (killCount.find())
+		{
+			killCounts.put(NameMatcher.normalize(killCount.group("name")), Integer.parseInt(killCount.group("count").replace(",", "")));
+			return;
+		}
+
 		if (message.startsWith(COLLECTION_LOG_PREFIX))
 		{
-			report("item", message.substring(COLLECTION_LOG_PREFIX.length()).trim(), 1);
+			report("item", message.substring(COLLECTION_LOG_PREFIX.length()).trim(), 1, context("collection_log", null, null));
 		}
 	}
 
-	private void reportItems(Collection<ItemStack> items)
+	private void reportItems(Collection<ItemStack> items, ApiModels.Context context)
 	{
 		Map<String, Integer> byName = new LinkedHashMap<>();
 		for (ItemStack item : items)
@@ -228,10 +257,45 @@ public class OsrsEventsPlugin extends Plugin
 			String name = itemManager.getItemComposition(item.getId()).getName();
 			byName.merge(name, item.getQuantity(), Integer::sum);
 		}
-		byName.forEach((name, quantity) -> report("item", name, quantity));
+		byName.forEach((name, quantity) -> report("item", name, quantity, context));
 	}
 
-	private void report(String kind, String name, int quantity)
+	/**
+	 * What a host can judge a claim by: what died, its level, the killcount,
+	 * everything else that dropped with it, and the region. Never chat, other
+	 * players or exact coordinates.
+	 */
+	private ApiModels.Context context(String source, NPC npc, Collection<ItemStack> items)
+	{
+		ApiModels.Context context = new ApiModels.Context();
+		context.source = source;
+
+		if (npc != null)
+		{
+			context.npcId = npc.getId();
+			context.npcName = npc.getName();
+			context.npcLevel = npc.getCombatLevel();
+			context.killCount = killCounts.get(NameMatcher.normalize(npc.getName()));
+		}
+
+		Player local = client.getLocalPlayer();
+		if (local != null && local.getWorldLocation() != null)
+		{
+			context.regionId = local.getWorldLocation().getRegionID();
+		}
+
+		if (items != null)
+		{
+			context.items = items.stream()
+				.limit(MAX_CONTEXT_ITEMS)
+				.map(item -> new ApiModels.Item(item.getId(), itemManager.getItemComposition(item.getId()).getName(), Math.max(item.getQuantity(), 1)))
+				.collect(Collectors.toList());
+		}
+
+		return context;
+	}
+
+	private void report(String kind, String name, int quantity, ApiModels.Context context)
 	{
 		if (!config.enabled() || rejected || !api.isConfigured() || name == null || !watch.contains(NameMatcher.normalize(name)))
 		{
@@ -250,7 +314,8 @@ public class OsrsEventsPlugin extends Plugin
 			name,
 			Math.max(quantity, 1),
 			local.getName(),
-			Instant.now().toString()
+			Instant.now().toString(),
+			context
 		)));
 		sendNext();
 	}
@@ -329,8 +394,14 @@ public class OsrsEventsPlugin extends Plugin
 				continue;
 			}
 
-			String label = verdict.label == null ? "Your claim" : verdict.label;
-			chat(label + " in " + verdict.eventTitle + ("APPROVED".equals(verdict.status) ? " was approved." : " was rejected."));
+			boolean approved = "APPROVED".equals(verdict.status);
+
+			chat(new ChatMessageBuilder()
+				.append(SUBJECT, verdict.label == null ? "Your claim" : verdict.label)
+				.append(BODY, " in ")
+				.append(EVENT, String.valueOf(verdict.eventTitle))
+				.append(BODY, " was ")
+				.append(approved ? GOOD : BAD, approved ? "approved" : "rejected"));
 		}
 
 		verdictsSeeded = true;
@@ -439,16 +510,39 @@ public class OsrsEventsPlugin extends Plugin
 			return;
 		}
 
-		String state = "PENDING".equals(claim.status) ? " (waiting for review)" : "";
-		String label = claim.label != null ? claim.label : claim.name;
-		chat("Claimed " + label + " in " + claim.eventTitle + state);
+		ChatMessageBuilder message = new ChatMessageBuilder()
+			.append(BODY, "Claimed ")
+			.append(SUBJECT, claim.label != null ? claim.label : claim.name)
+			.append(BODY, " in ")
+			.append(EVENT, String.valueOf(claim.eventTitle));
+
+		if ("PENDING".equals(claim.status))
+		{
+			message.append(MUTED, " - waiting for review");
+		}
+		else
+		{
+			message.append(GOOD, " - approved");
+		}
+
+		chat(message);
 	}
 
 	private void chat(String text)
 	{
+		chat(new ChatMessageBuilder().append(BODY, text));
+	}
+
+	private void chat(ChatMessageBuilder message)
+	{
+		String formatted = new ChatMessageBuilder()
+			.append(BRAND, "OSRS Events: ")
+			.append(message.build())
+			.build();
+
 		clientThread.invokeLater(() -> chatMessageManager.queue(QueuedMessage.builder()
 			.type(ChatMessageType.CONSOLE)
-			.runeLiteFormattedMessage("OSRS Events: " + text)
+			.runeLiteFormattedMessage(formatted)
 			.build()));
 	}
 

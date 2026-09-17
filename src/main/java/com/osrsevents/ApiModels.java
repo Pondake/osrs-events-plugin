@@ -11,6 +11,30 @@ final class ApiModels
 	}
 
 	@AllArgsConstructor
+	static class Item
+	{
+		final int id;
+		final String name;
+		final int quantity;
+	}
+
+	static class Context
+	{
+		String source;
+		@SerializedName("npc_id")
+		Integer npcId;
+		@SerializedName("npc_name")
+		String npcName;
+		@SerializedName("npc_level")
+		Integer npcLevel;
+		@SerializedName("kill_count")
+		Integer killCount;
+		@SerializedName("region_id")
+		Integer regionId;
+		List<Item> items;
+	}
+
+	@AllArgsConstructor
 	static class Completion
 	{
 		@SerializedName("client_event_id")
@@ -21,6 +45,7 @@ final class ApiModels
 		final String rsn;
 		@SerializedName("occurred_at")
 		final String occurredAt;
+		final Context context;
 	}
 
 	static class EventsResponse
