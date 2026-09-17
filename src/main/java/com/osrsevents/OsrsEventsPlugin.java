@@ -75,7 +75,7 @@ public class OsrsEventsPlugin extends Plugin
 	private final AtomicBoolean sending = new AtomicBoolean();
 	private volatile boolean rejected;
 	private int ticks;
-	private GameState previousState;
+	private boolean loginPending = true;
 
 	private static final class Pending
 	{
@@ -93,6 +93,7 @@ public class OsrsEventsPlugin extends Plugin
 	{
 		if (client.getGameState() == GameState.LOGGED_IN)
 		{
+			loginPending = false;
 			refreshWatch(true);
 		}
 	}
@@ -136,12 +137,17 @@ public class OsrsEventsPlugin extends Plugin
 	@Subscribe
 	public void onGameStateChanged(GameStateChanged event)
 	{
-		// Every loading screen goes LOADING -> LOGGED_IN; only a real login announces.
-		if (event.getGameState() == GameState.LOGGED_IN && previousState != GameState.LOADING)
+		GameState state = event.getGameState();
+		if (state == GameState.LOGIN_SCREEN || state == GameState.HOPPING)
 		{
+			loginPending = true;
+		}
+		// Loading screens also end in LOGGED_IN; only the first one after a login announces.
+		else if (state == GameState.LOGGED_IN && loginPending)
+		{
+			loginPending = false;
 			refreshWatch(true);
 		}
-		previousState = event.getGameState();
 	}
 
 	@Subscribe
