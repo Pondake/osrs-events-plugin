@@ -29,6 +29,7 @@ import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.chat.ChatColorType;
 import net.runelite.client.chat.ChatMessageBuilder;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
@@ -55,14 +56,14 @@ public class OsrsEventsPlugin extends Plugin
 	private static final Pattern KILL_COUNT = Pattern.compile("Your (?<name>.+) (kill|chest|completion) count is: ?(?<count>[\\d,]+)");
 	private static final int MAX_CONTEXT_ITEMS = 40;
 
-	// Amber is the site's own colour; the rest keep both chat backgrounds readable.
-	private static final Color BRAND = new Color(0xFE9A00);
-	private static final Color SUBJECT = new Color(0xFFE0A0);
-	private static final Color EVENT = new Color(0x7FD4FF);
-	private static final Color BODY = new Color(0xEDEDED);
-	private static final Color MUTED = new Color(0xAAAAAA);
-	private static final Color GOOD = new Color(0x4CD964);
-	private static final Color BAD = new Color(0xFF6B6B);
+	/**
+	 * Only the prefix and a verdict carry a colour of their own. Everything else
+	 * uses the player's own chat colours, which is the only way a line stays
+	 * readable in both the opaque and the transparent chatbox.
+	 */
+	private static final Color BRAND = new Color(0xC86400);
+	private static final Color GOOD = new Color(0x006400);
+	private static final Color BAD = new Color(0x8B0000);
 	/** Client ticks (20ms) without mouse or keyboard before the refresh backs off. */
 	private static final int IDLE_CLIENT_TICKS = 15_000;
 	private static final int IDLE_REFRESH_SECONDS = 600;
@@ -397,10 +398,10 @@ public class OsrsEventsPlugin extends Plugin
 			boolean approved = "APPROVED".equals(verdict.status);
 
 			chat(line()
-				.append(SUBJECT, verdict.label == null ? "Your claim" : verdict.label)
-				.append(BODY, " in ")
-				.append(EVENT, String.valueOf(verdict.eventTitle))
-				.append(BODY, " was ")
+				.append(ChatColorType.HIGHLIGHT).append(verdict.label == null ? "Your claim" : verdict.label)
+				.append(ChatColorType.NORMAL).append(" in ")
+				.append(ChatColorType.HIGHLIGHT).append(String.valueOf(verdict.eventTitle))
+				.append(ChatColorType.NORMAL).append(" was ")
 				.append(approved ? GOOD : BAD, approved ? "approved" : "rejected"));
 		}
 
@@ -511,14 +512,14 @@ public class OsrsEventsPlugin extends Plugin
 		}
 
 		ChatMessageBuilder message = line()
-			.append(BODY, "Claimed ")
-			.append(SUBJECT, claim.label != null ? claim.label : claim.name)
-			.append(BODY, " in ")
-			.append(EVENT, String.valueOf(claim.eventTitle));
+			.append(ChatColorType.NORMAL).append("Claimed ")
+			.append(ChatColorType.HIGHLIGHT).append(claim.label != null ? claim.label : claim.name)
+			.append(ChatColorType.NORMAL).append(" in ")
+			.append(ChatColorType.HIGHLIGHT).append(String.valueOf(claim.eventTitle));
 
 		if ("PENDING".equals(claim.status))
 		{
-			message.append(MUTED, " - waiting for review");
+			message.append(ChatColorType.NORMAL).append(" - waiting for review");
 		}
 		else
 		{
@@ -536,7 +537,7 @@ public class OsrsEventsPlugin extends Plugin
 
 	private void chat(String text)
 	{
-		chat(line().append(BODY, text));
+		chat(line().append(ChatColorType.NORMAL).append(text));
 	}
 
 	private void chat(ChatMessageBuilder message)
