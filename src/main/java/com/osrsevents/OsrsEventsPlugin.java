@@ -414,7 +414,7 @@ public class OsrsEventsPlugin extends Plugin
 				.append(ChatColorType.NORMAL).append(" in ")
 				.append(config.accent(), String.valueOf(verdict.eventTitle))
 				.append(ChatColorType.NORMAL).append(" was ")
-				.append(config.accent(), approved ? "approved" : "rejected"));
+				.append(approved ? config.approvedColour() : config.rejectedColour(), approved ? "approved" : "rejected"));
 		}
 
 		verdictsSeeded = true;
@@ -534,14 +534,22 @@ public class OsrsEventsPlugin extends Plugin
 			return;
 		}
 
+		boolean pending = "PENDING".equals(claim.status);
+
 		ChatMessageBuilder message = line()
 			.append(ChatColorType.NORMAL).append("Claimed ")
 			.append(config.accent(), claim.label != null ? claim.label : claim.name)
 			.append(ChatColorType.NORMAL).append(" in ")
-			.append(config.accent(), String.valueOf(claim.eventTitle));
+			.append(config.accent(), String.valueOf(claim.eventTitle))
+			.append(ChatColorType.NORMAL).append(" - ");
 
-		message.append(ChatColorType.NORMAL)
-			.append("PENDING".equals(claim.status) ? " - waiting for review" : " - approved");
+		// Only the verdict carries a colour of its own. A claim that counted
+		// and a claim still waiting are the one thing worth telling apart at
+		// a glance, and the rest of the line stays in the accent so a green
+		// word means "done" and nothing else.
+		message.append(
+			pending ? config.accent() : config.approvedColour(),
+			pending ? "waiting for review" : "approved");
 
 		chat(message);
 	}

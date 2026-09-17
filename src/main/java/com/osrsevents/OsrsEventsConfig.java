@@ -116,7 +116,31 @@ public interface OsrsEventsConfig extends Config
 	)
 	default Color accent()
 	{
-		return new Color(0xFF981F);
+		return new Color(0xC86414);
+	}
+
+	@ConfigItem(
+		keyName = "approvedColour",
+		name = "Approved colour",
+		description = "Colour for a claim that counted. Only the verdict uses it, so an approval is readable at a glance.",
+		section = CHAT,
+		position = 25
+	)
+	default Color approvedColour()
+	{
+		return new Color(0x2E8B2E);
+	}
+
+	@ConfigItem(
+		keyName = "rejectedColour",
+		name = "Rejected colour",
+		description = "Colour for a claim a host turned down",
+		section = CHAT,
+		position = 26
+	)
+	default Color rejectedColour()
+	{
+		return new Color(0xB83232);
 	}
 
 	@ConfigItem(
