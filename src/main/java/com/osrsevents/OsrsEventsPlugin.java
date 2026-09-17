@@ -67,6 +67,9 @@ public class OsrsEventsPlugin extends Plugin
 	@Inject
 	private ChatMessageManager chatMessageManager;
 
+	@Inject
+	private ConfigManager configManager;
+
 	private volatile Set<String> watch = Collections.emptySet();
 	private final ConcurrentLinkedDeque<Pending> queue = new ConcurrentLinkedDeque<>();
 	private final AtomicBoolean sending = new AtomicBoolean();
@@ -106,6 +109,21 @@ public class OsrsEventsPlugin extends Plugin
 	{
 		if (!OsrsEventsConfig.GROUP.equals(event.getGroup()))
 		{
+			return;
+		}
+
+		if ("checkConnection".equals(event.getKey()))
+		{
+			if ("true".equals(event.getNewValue()))
+			{
+				configManager.setConfiguration(OsrsEventsConfig.GROUP, "checkConnection", false);
+				rejected = false;
+				if (!config.enabled())
+				{
+					chat("Turn on Send completions first.");
+				}
+				refreshWatch(true);
+			}
 			return;
 		}
 
@@ -253,7 +271,7 @@ public class OsrsEventsPlugin extends Plugin
 				}
 				else if (status == -1)
 				{
-					chat("Could not reach " + config.serverUrl().trim() + ".");
+					chat("No answer from " + config.serverUrl().trim() + ". Is the server running?");
 				}
 				else if (status != 401)
 				{

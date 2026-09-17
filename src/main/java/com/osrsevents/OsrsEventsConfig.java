@@ -43,4 +43,15 @@ public interface OsrsEventsConfig extends Config
 	{
 		return "https://osrs-events.com";
 	}
+
+	@ConfigItem(
+		keyName = "checkConnection",
+		name = "Check connection",
+		description = "Tick to test the connection now. The result appears in chat and the box unticks itself.",
+		position = 3
+	)
+	default boolean checkConnection()
+	{
+		return false;
+	}
 }
