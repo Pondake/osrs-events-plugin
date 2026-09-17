@@ -27,8 +27,13 @@ final class ApiModels
 	{
 		String mode;
 		String rsn;
-		List<Object> events;
+		List<EventInfo> events;
 		List<String> watch;
+	}
+
+	static class EventInfo
+	{
+		List<Object> targets;
 	}
 
 	static class CompletionResponse

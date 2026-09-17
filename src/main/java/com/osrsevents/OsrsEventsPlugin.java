@@ -75,6 +75,7 @@ public class OsrsEventsPlugin extends Plugin
 	private final AtomicBoolean sending = new AtomicBoolean();
 	private volatile boolean rejected;
 	private int ticks;
+	private GameState previousState;
 
 	private static final class Pending
 	{
@@ -135,10 +136,12 @@ public class OsrsEventsPlugin extends Plugin
 	@Subscribe
 	public void onGameStateChanged(GameStateChanged event)
 	{
-		if (event.getGameState() == GameState.LOGGED_IN)
+		// Every loading screen goes LOADING -> LOGGED_IN; only a real login announces.
+		if (event.getGameState() == GameState.LOGGED_IN && previousState != GameState.LOADING)
 		{
 			refreshWatch(true);
 		}
+		previousState = event.getGameState();
 	}
 
 	@Subscribe
@@ -283,7 +286,7 @@ public class OsrsEventsPlugin extends Plugin
 
 	private void announceConnection(ApiModels.EventsResponse events)
 	{
-		int eventCount = events.events == null ? 0 : events.events.size();
+		long eventCount = events.events == null ? 0 : events.events.stream().filter(e -> e.targets != null && !e.targets.isEmpty()).count();
 		clientThread.invokeLater(() ->
 		{
 			Player local = client.getLocalPlayer();
@@ -299,11 +302,11 @@ public class OsrsEventsPlugin extends Plugin
 			}
 			else if (watch.isEmpty())
 			{
-				chat("Connected as " + events.rsn + ". Nothing to watch yet: " + eventCount + " running events, none with an open wiki-linked square or tile.");
+				chat("Connected as " + events.rsn + ". Nothing to watch yet: " + (events.events == null ? 0 : events.events.size()) + " running events, none with an open wiki-linked square or tile.");
 			}
 			else
 			{
-				chat("Connected as " + events.rsn + ". Watching " + watch.size() + " names in " + eventCount + " events.");
+				chat("Connected as " + events.rsn + ". Watching " + watch.size() + " names in " + eventCount + (eventCount == 1 ? " event." : " events."));
 			}
 		});
 	}
