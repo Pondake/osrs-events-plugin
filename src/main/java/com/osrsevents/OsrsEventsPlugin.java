@@ -396,7 +396,7 @@ public class OsrsEventsPlugin extends Plugin
 
 			boolean approved = "APPROVED".equals(verdict.status);
 
-			chat(new ChatMessageBuilder()
+			chat(line()
 				.append(SUBJECT, verdict.label == null ? "Your claim" : verdict.label)
 				.append(BODY, " in ")
 				.append(EVENT, String.valueOf(verdict.eventTitle))
@@ -510,7 +510,7 @@ public class OsrsEventsPlugin extends Plugin
 			return;
 		}
 
-		ChatMessageBuilder message = new ChatMessageBuilder()
+		ChatMessageBuilder message = line()
 			.append(BODY, "Claimed ")
 			.append(SUBJECT, claim.label != null ? claim.label : claim.name)
 			.append(BODY, " in ")
@@ -528,17 +528,20 @@ public class OsrsEventsPlugin extends Plugin
 		chat(message);
 	}
 
+	/** One builder per line: appending an already-built string escapes its tags. */
+	private ChatMessageBuilder line()
+	{
+		return new ChatMessageBuilder().append(BRAND, "OSRS Events: ");
+	}
+
 	private void chat(String text)
 	{
-		chat(new ChatMessageBuilder().append(BODY, text));
+		chat(line().append(BODY, text));
 	}
 
 	private void chat(ChatMessageBuilder message)
 	{
-		String formatted = new ChatMessageBuilder()
-			.append(BRAND, "OSRS Events: ")
-			.append(message.build())
-			.build();
+		String formatted = message.build();
 
 		clientThread.invokeLater(() -> chatMessageManager.queue(QueuedMessage.builder()
 			.type(ChatMessageType.CONSOLE)
