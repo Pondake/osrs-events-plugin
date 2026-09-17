@@ -1,7 +1,6 @@
 package com.osrsevents;
 
 import com.google.inject.Provides;
-import java.awt.Color;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
@@ -57,13 +56,11 @@ public class OsrsEventsPlugin extends Plugin
 	private static final int MAX_CONTEXT_ITEMS = 40;
 
 	/**
-	 * Only the prefix and a verdict carry a colour of their own. Everything else
-	 * uses the player's own chat colours, which is the only way a line stays
-	 * readable in both the opaque and the transparent chatbox.
+	 * No colours of our own. A fixed colour cannot be readable on both an
+	 * opaque black chatbox and a transparent one over a bright world, so every
+	 * part of a line uses the player's own chat colours, which RuneLite already
+	 * keeps in two variants for exactly that reason.
 	 */
-	private static final Color BRAND = new Color(0xC86400);
-	private static final Color GOOD = new Color(0x006400);
-	private static final Color BAD = new Color(0x8B0000);
 	/** Client ticks (20ms) without mouse or keyboard before the refresh backs off. */
 	private static final int IDLE_CLIENT_TICKS = 15_000;
 	private static final int IDLE_REFRESH_SECONDS = 600;
@@ -402,7 +399,7 @@ public class OsrsEventsPlugin extends Plugin
 				.append(ChatColorType.NORMAL).append(" in ")
 				.append(ChatColorType.HIGHLIGHT).append(String.valueOf(verdict.eventTitle))
 				.append(ChatColorType.NORMAL).append(" was ")
-				.append(approved ? GOOD : BAD, approved ? "approved" : "rejected"));
+				.append(ChatColorType.HIGHLIGHT).append(approved ? "approved" : "rejected"));
 		}
 
 		verdictsSeeded = true;
@@ -517,14 +514,8 @@ public class OsrsEventsPlugin extends Plugin
 			.append(ChatColorType.NORMAL).append(" in ")
 			.append(ChatColorType.HIGHLIGHT).append(String.valueOf(claim.eventTitle));
 
-		if ("PENDING".equals(claim.status))
-		{
-			message.append(ChatColorType.NORMAL).append(" - waiting for review");
-		}
-		else
-		{
-			message.append(GOOD, " - approved");
-		}
+		message.append(ChatColorType.NORMAL)
+			.append("PENDING".equals(claim.status) ? " - waiting for review" : " - approved");
 
 		chat(message);
 	}
@@ -532,7 +523,7 @@ public class OsrsEventsPlugin extends Plugin
 	/** One builder per line: appending an already-built string escapes its tags. */
 	private ChatMessageBuilder line()
 	{
-		return new ChatMessageBuilder().append(BRAND, "OSRS Events: ");
+		return new ChatMessageBuilder().append(ChatColorType.HIGHLIGHT).append("OSRS Events: ");
 	}
 
 	private void chat(String text)
