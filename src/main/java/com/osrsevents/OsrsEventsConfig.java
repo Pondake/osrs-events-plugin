@@ -4,12 +4,35 @@ import java.awt.Color;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
+import net.runelite.client.config.ConfigSection;
 import net.runelite.client.config.Range;
 
 @ConfigGroup(OsrsEventsConfig.GROUP)
 public interface OsrsEventsConfig extends Config
 {
 	String GROUP = "osrs-events";
+
+	@ConfigSection(
+		name = "Account",
+		description = "Which account on osrs-events this client claims for",
+		position = 10
+	)
+	String ACCOUNT = "account";
+
+	@ConfigSection(
+		name = "Chat",
+		description = "What the plugin says in game, and in which colour",
+		position = 20
+	)
+	String CHAT = "chat";
+
+	@ConfigSection(
+		name = "Advanced",
+		description = "Rarely worth changing",
+		position = 30,
+		closedByDefault = true
+	)
+	String ADVANCED = "advanced";
 
 	@ConfigItem(
 		keyName = "enabled",
@@ -28,7 +51,8 @@ public interface OsrsEventsConfig extends Config
 		name = "Plugin code",
 		description = "The code from your settings page on osrs-events",
 		secret = true,
-		position = 1
+		section = ACCOUNT,
+		position = 11
 	)
 	default String token()
 	{
@@ -36,21 +60,11 @@ public interface OsrsEventsConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "serverUrl",
-		name = "Server",
-		description = "Only change this when testing against another environment",
-		position = 2
-	)
-	default String serverUrl()
-	{
-		return "https://osrs-events.com";
-	}
-
-	@ConfigItem(
 		keyName = "checkConnection",
 		name = "Check connection",
 		description = "Tick to test the connection now. The result appears in chat and the box unticks itself.",
-		position = 3
+		section = ACCOUNT,
+		position = 12
 	)
 	default boolean checkConnection()
 	{
@@ -59,9 +73,10 @@ public interface OsrsEventsConfig extends Config
 
 	@ConfigItem(
 		keyName = "chatStatus",
-		name = "Chat: connection",
+		name = "Connection",
 		description = "Say in chat whether the plugin is connected, and what is wrong when it is not",
-		position = 4
+		section = CHAT,
+		position = 21
 	)
 	default boolean chatStatus()
 	{
@@ -70,9 +85,10 @@ public interface OsrsEventsConfig extends Config
 
 	@ConfigItem(
 		keyName = "chatClaims",
-		name = "Chat: claims",
+		name = "Claims",
 		description = "Say in chat when a drop or kill claims a square or tile",
-		position = 5
+		section = CHAT,
+		position = 22
 	)
 	default boolean chatClaims()
 	{
@@ -81,9 +97,10 @@ public interface OsrsEventsConfig extends Config
 
 	@ConfigItem(
 		keyName = "chatVerdicts",
-		name = "Chat: approvals",
+		name = "Approvals",
 		description = "Say in chat when a host approves or rejects one of your claims",
-		position = 6
+		section = CHAT,
+		position = 23
 	)
 	default boolean chatVerdicts()
 	{
@@ -91,25 +108,39 @@ public interface OsrsEventsConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "accent",
+		name = "Accent colour",
+		description = "Colour for the OSRS Events prefix and the names it mentions. The rest follows your own chat colours.",
+		section = CHAT,
+		position = 24
+	)
+	default Color accent()
+	{
+		return new Color(0xFF981F);
+	}
+
+	@ConfigItem(
+		keyName = "serverUrl",
+		name = "Server",
+		description = "Only change this when testing against another environment",
+		section = ADVANCED,
+		position = 31
+	)
+	default String serverUrl()
+	{
+		return "https://osrs-events.com";
+	}
+
+	@ConfigItem(
 		keyName = "refreshSeconds",
 		name = "Refresh every (seconds)",
 		description = "How often to ask the site what to watch and whether a claim was reviewed. While you sit idle this backs off to ten minutes.",
-		position = 7
+		section = ADVANCED,
+		position = 32
 	)
 	@Range(min = 15, max = 600)
 	default int refreshSeconds()
 	{
 		return 60;
-	}
-
-	@ConfigItem(
-		keyName = "accent",
-		name = "Chat accent",
-		description = "Colour for the OSRS Events prefix and the names it mentions. The rest follows your own chat colours.",
-		position = 8
-	)
-	default Color accent()
-	{
-		return new Color(0xFF981F);
 	}
 }
