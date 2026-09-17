@@ -14,8 +14,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -53,7 +51,6 @@ import net.runelite.http.api.loottracker.LootRecordType;
 public class OsrsEventsPlugin extends Plugin
 {
 	private static final String COLLECTION_LOG_PREFIX = "New item added to your collection log:";
-	private static final Pattern KILL_COUNT = Pattern.compile("Your (?<name>.+) (kill|chest|completion) count is: ?(?<count>[\\d,]+)");
 	private static final int MAX_CONTEXT_ITEMS = 40;
 
 	/**
@@ -240,19 +237,17 @@ public class OsrsEventsPlugin extends Plugin
 
 		String message = event.getMessage().replaceAll("<[^>]*>", "");
 
-		Matcher killCount = KILL_COUNT.matcher(message);
-		if (killCount.find())
+		KillCount.Parsed killCount = KillCount.parse(message);
+		if (killCount != null)
 		{
-			String name = killCount.group("name");
-			int count = Integer.parseInt(killCount.group("count").replace(",", ""));
-			killCounts.put(NameMatcher.normalize(name), count);
+			killCounts.put(NameMatcher.normalize(killCount.name), killCount.count);
 
 			// The only signal a minigame gives: Tempoross and friends drop no loot on
 			// the kill itself, so without this nothing would ever claim their square.
 			ApiModels.Context context = context("kill_count", null, null);
-			context.npcName = name;
-			context.killCount = count;
-			report("npc_kill", name, 1, context);
+			context.npcName = killCount.name;
+			context.killCount = killCount.count;
+			report("npc_kill", killCount.name, 1, context);
 			return;
 		}
 
