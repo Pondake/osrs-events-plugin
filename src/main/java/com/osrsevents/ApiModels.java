@@ -75,6 +75,19 @@ final class ApiModels
 	{
 		boolean duplicate;
 		List<Claim> claims;
+		/** Counted targets this report moved without claiming: "2 / 5". */
+		List<Progress> progress;
+	}
+
+	static class Progress
+	{
+		@SerializedName("event_title")
+		String eventTitle;
+		String label;
+		String name;
+		int done;
+		@SerializedName("required_count")
+		int requiredCount;
 	}
 
 	static class Claim

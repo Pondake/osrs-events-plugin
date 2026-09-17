@@ -478,10 +478,21 @@ public class OsrsEventsPlugin extends Plugin
 			if (status == 200 || status == 201)
 			{
 				ApiModels.CompletionResponse response = api.parse(body, ApiModels.CompletionResponse.class);
-				if (response != null && !response.duplicate && response.claims != null && !response.claims.isEmpty())
+				if (response != null && !response.duplicate)
 				{
-					response.claims.forEach(this::announce);
-					refreshWatch(false);
+					// A counted square that moved is news even though it
+					// claimed nothing: "Zalcano 2 / 5" rather than silence
+					// until the fifth kill.
+					if (response.progress != null)
+					{
+						response.progress.forEach(this::announce);
+					}
+
+					if (response.claims != null && !response.claims.isEmpty())
+					{
+						response.claims.forEach(this::announce);
+						refreshWatch(false);
+					}
 				}
 			}
 			else if (status == 401 || status == 404)
@@ -533,6 +544,21 @@ public class OsrsEventsPlugin extends Plugin
 			.append("PENDING".equals(claim.status) ? " - waiting for review" : " - approved");
 
 		chat(message);
+	}
+
+	private void announce(ApiModels.Progress progress)
+	{
+		if (!config.chatClaims())
+		{
+			return;
+		}
+
+		chat(line()
+			.append(config.accent(), progress.label != null ? progress.label : String.valueOf(progress.name))
+			.append(ChatColorType.NORMAL).append(" ")
+			.append(config.accent(), progress.done + " / " + progress.requiredCount)
+			.append(ChatColorType.NORMAL).append(" in ")
+			.append(config.accent(), String.valueOf(progress.eventTitle)));
 	}
 
 	/** One builder per line: appending an already-built string escapes its tags. */
