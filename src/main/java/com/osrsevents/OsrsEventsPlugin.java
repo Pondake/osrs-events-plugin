@@ -46,7 +46,9 @@ import net.runelite.http.api.loottracker.LootRecordType;
 public class OsrsEventsPlugin extends Plugin
 {
 	private static final String COLLECTION_LOG_PREFIX = "New item added to your collection log:";
-	private static final int REFRESH_TICKS = 500;
+	/** Client ticks (20ms) without mouse or keyboard before the refresh backs off. */
+	private static final int IDLE_CLIENT_TICKS = 15_000;
+	private static final int IDLE_REFRESH_SECONDS = 600;
 	private static final int RETRY_TICKS = 10;
 	private static final int MAX_ATTEMPTS = 30;
 
@@ -76,6 +78,7 @@ public class OsrsEventsPlugin extends Plugin
 	private final AtomicBoolean sending = new AtomicBoolean();
 	private volatile boolean rejected;
 	private int ticks;
+	private int retryTicks;
 	private boolean loginPending = true;
 	private final Set<String> seenVerdicts = new HashSet<>();
 	private boolean verdictsSeeded;
@@ -159,14 +162,25 @@ public class OsrsEventsPlugin extends Plugin
 	public void onGameTick(GameTick tick)
 	{
 		ticks++;
-		if (ticks % REFRESH_TICKS == 0)
+		if (ticks >= refreshEveryTicks())
 		{
+			ticks = 0;
 			refreshWatch(false);
 		}
-		if (ticks % RETRY_TICKS == 0)
+		if (++retryTicks >= RETRY_TICKS)
 		{
+			retryTicks = 0;
 			sendNext();
 		}
+	}
+
+	/** A game tick is 0.6s; an idle player asks far less often. */
+	private int refreshEveryTicks()
+	{
+		boolean idle = client.getMouseIdleTicks() > IDLE_CLIENT_TICKS && client.getKeyboardIdleTicks() > IDLE_CLIENT_TICKS;
+		int seconds = idle ? IDLE_REFRESH_SECONDS : Math.min(Math.max(config.refreshSeconds(), 15), IDLE_REFRESH_SECONDS);
+
+		return (int) Math.ceil(seconds / 0.6);
 	}
 
 	@Subscribe

@@ -3,6 +3,7 @@ package com.osrsevents;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
+import net.runelite.client.config.Range;
 
 @ConfigGroup(OsrsEventsConfig.GROUP)
 public interface OsrsEventsConfig extends Config
@@ -86,5 +87,17 @@ public interface OsrsEventsConfig extends Config
 	default boolean chatVerdicts()
 	{
 		return true;
+	}
+
+	@ConfigItem(
+		keyName = "refreshSeconds",
+		name = "Refresh every (seconds)",
+		description = "How often to ask the site what to watch and whether a claim was reviewed. While you sit idle this backs off to ten minutes.",
+		position = 7
+	)
+	@Range(min = 15, max = 600)
+	default int refreshSeconds()
+	{
+		return 60;
 	}
 }
