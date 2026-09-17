@@ -223,7 +223,11 @@ public class OsrsEventsPlugin extends Plugin
 		{
 			return;
 		}
-		reportItems(event.getItems(), context("loot", null, event.getItems()));
+		ApiModels.Context context = context("loot", null, event.getItems());
+		context.npcName = event.getName();
+		context.killCount = killCounts.get(NameMatcher.normalize(String.valueOf(event.getName())));
+
+		reportItems(event.getItems(), context);
 	}
 
 	@Subscribe
@@ -239,7 +243,16 @@ public class OsrsEventsPlugin extends Plugin
 		Matcher killCount = KILL_COUNT.matcher(message);
 		if (killCount.find())
 		{
-			killCounts.put(NameMatcher.normalize(killCount.group("name")), Integer.parseInt(killCount.group("count").replace(",", "")));
+			String name = killCount.group("name");
+			int count = Integer.parseInt(killCount.group("count").replace(",", ""));
+			killCounts.put(NameMatcher.normalize(name), count);
+
+			// The only signal a minigame gives: Tempoross and friends drop no loot on
+			// the kill itself, so without this nothing would ever claim their square.
+			ApiModels.Context context = context("kill_count", null, null);
+			context.npcName = name;
+			context.killCount = count;
+			report("npc_kill", name, 1, context);
 			return;
 		}
 
