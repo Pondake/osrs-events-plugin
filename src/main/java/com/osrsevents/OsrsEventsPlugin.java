@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -88,7 +89,7 @@ public class OsrsEventsPlugin extends Plugin
 	{
 		if (client.getGameState() == GameState.LOGGED_IN)
 		{
-			refreshWatch();
+			refreshWatch(true);
 		}
 	}
 
@@ -110,7 +111,7 @@ public class OsrsEventsPlugin extends Plugin
 
 		rejected = false;
 		watch = Collections.emptySet();
-		refreshWatch();
+		refreshWatch(true);
 	}
 
 	@Subscribe
@@ -118,7 +119,7 @@ public class OsrsEventsPlugin extends Plugin
 	{
 		if (event.getGameState() == GameState.LOGGED_IN)
 		{
-			refreshWatch();
+			refreshWatch(true);
 		}
 	}
 
@@ -128,7 +129,7 @@ public class OsrsEventsPlugin extends Plugin
 		ticks++;
 		if (ticks % REFRESH_TICKS == 0)
 		{
-			refreshWatch();
+			refreshWatch(false);
 		}
 		if (ticks % RETRY_TICKS == 0)
 		{
@@ -208,10 +209,20 @@ public class OsrsEventsPlugin extends Plugin
 		sendNext();
 	}
 
-	private void refreshWatch()
+	/** With announce, the result goes to chat: this is the connection check. */
+	private void refreshWatch(boolean announce)
 	{
 		if (!config.enabled() || rejected)
 		{
+			return;
+		}
+
+		if (!api.isConfigured())
+		{
+			if (announce)
+			{
+				chat("Paste your plugin code and check the Server setting.");
+			}
 			return;
 		}
 
@@ -222,12 +233,71 @@ public class OsrsEventsPlugin extends Plugin
 				ApiModels.EventsResponse events = api.parse(body, ApiModels.EventsResponse.class);
 				watch = events == null || events.watch == null ? Collections.emptySet() : new HashSet<>(events.watch);
 				log.debug("osrs-events watching {} names", watch.size());
+				if (announce && events != null)
+				{
+					announceConnection(events);
+				}
+				return;
 			}
-			else if (status == 401 || status == 404)
+
+			if (status == 401 || status == 404)
 			{
 				stop(status, body);
 			}
+
+			if (announce)
+			{
+				if (status == 404)
+				{
+					chat("The plugin is switched off on " + config.serverUrl().trim() + ".");
+				}
+				else if (status == -1)
+				{
+					chat("Could not reach " + config.serverUrl().trim() + ".");
+				}
+				else if (status != 401)
+				{
+					chat("The server answered " + status + ".");
+				}
+			}
 		});
+	}
+
+	private void announceConnection(ApiModels.EventsResponse events)
+	{
+		int eventCount = events.events == null ? 0 : events.events.size();
+		clientThread.invokeLater(() ->
+		{
+			Player local = client.getLocalPlayer();
+			String character = local == null ? null : local.getName();
+
+			if (events.rsn == null || events.rsn.isEmpty())
+			{
+				chat("Connected, but your account has no OSRS username. Set it on the site first.");
+			}
+			else if (character != null && !sameRsn(character, events.rsn))
+			{
+				chat("Connected as " + events.rsn + ", but you are logged in as " + character + ". Drops from this character will be refused.");
+			}
+			else if (watch.isEmpty())
+			{
+				chat("Connected as " + events.rsn + ". Nothing to watch yet: " + eventCount + " running events, none with an open wiki-linked square or tile.");
+			}
+			else
+			{
+				chat("Connected as " + events.rsn + ". Watching " + watch.size() + " names in " + eventCount + " events.");
+			}
+		});
+	}
+
+	static boolean sameRsn(String a, String b)
+	{
+		return rsnKey(a).equals(rsnKey(b));
+	}
+
+	private static String rsnKey(String rsn)
+	{
+		return rsn.replaceAll("[\\s_\\-\\u00A0]+", " ").trim().toLowerCase(Locale.ROOT);
 	}
 
 	private void sendNext()
@@ -254,7 +324,7 @@ public class OsrsEventsPlugin extends Plugin
 				if (response != null && !response.duplicate && response.claims != null && !response.claims.isEmpty())
 				{
 					response.claims.forEach(this::announce);
-					refreshWatch();
+					refreshWatch(false);
 				}
 			}
 			else if (status == 401 || status == 404)

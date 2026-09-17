@@ -1,7 +1,9 @@
 package com.osrsevents;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /** Same cases as the server's RunelitePluginApiTest::names. */
@@ -33,5 +35,13 @@ public class NameMatcherTest
 		different("Berserker ring (i)", "Berserker ring");
 		different("Dragon bones", "Big bones");
 		assertEquals("karils coif", NameMatcher.normalize("Karil's coif"));
+	}
+
+	@Test
+	public void rsnComparesLikeTheGame()
+	{
+		assertTrue(OsrsEventsPlugin.sameRsn("Iron Pondake", "iron_pondake"));
+		assertTrue(OsrsEventsPlugin.sameRsn("Iron-Pondake", "Iron Pondake"));
+		assertFalse(OsrsEventsPlugin.sameRsn("Pondake", "Zezima"));
 	}
 }

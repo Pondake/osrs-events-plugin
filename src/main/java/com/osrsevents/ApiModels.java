@@ -27,6 +27,7 @@ final class ApiModels
 	{
 		String mode;
 		String rsn;
+		List<Object> events;
 		List<String> watch;
 	}
 
