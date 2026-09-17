@@ -28,6 +28,7 @@ import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.client.callback.ClientThread;
+import java.awt.Color;
 import net.runelite.client.chat.ChatColorType;
 import net.runelite.client.chat.ChatMessageBuilder;
 import net.runelite.client.chat.ChatMessageManager;
@@ -59,7 +60,8 @@ public class OsrsEventsPlugin extends Plugin
 	 * No colours of our own. A fixed colour cannot be readable on both an
 	 * opaque black chatbox and a transparent one over a bright world, so every
 	 * part of a line uses the player's own chat colours, which RuneLite already
-	 * keeps in two variants for exactly that reason.
+	 * keeps in two variants for exactly that reason. Only the accent is ours,
+	 * and it is a setting so it can be tuned against a real chatbox.
 	 */
 	/** Client ticks (20ms) without mouse or keyboard before the refresh backs off. */
 	private static final int IDLE_CLIENT_TICKS = 15_000;
@@ -395,11 +397,11 @@ public class OsrsEventsPlugin extends Plugin
 			boolean approved = "APPROVED".equals(verdict.status);
 
 			chat(line()
-				.append(ChatColorType.HIGHLIGHT).append(verdict.label == null ? "Your claim" : verdict.label)
+				.append(config.accent(), verdict.label == null ? "Your claim" : verdict.label)
 				.append(ChatColorType.NORMAL).append(" in ")
-				.append(ChatColorType.HIGHLIGHT).append(String.valueOf(verdict.eventTitle))
+				.append(config.accent(), String.valueOf(verdict.eventTitle))
 				.append(ChatColorType.NORMAL).append(" was ")
-				.append(ChatColorType.HIGHLIGHT).append(approved ? "approved" : "rejected"));
+				.append(config.accent(), approved ? "approved" : "rejected"));
 		}
 
 		verdictsSeeded = true;
@@ -510,9 +512,9 @@ public class OsrsEventsPlugin extends Plugin
 
 		ChatMessageBuilder message = line()
 			.append(ChatColorType.NORMAL).append("Claimed ")
-			.append(ChatColorType.HIGHLIGHT).append(claim.label != null ? claim.label : claim.name)
+			.append(config.accent(), claim.label != null ? claim.label : claim.name)
 			.append(ChatColorType.NORMAL).append(" in ")
-			.append(ChatColorType.HIGHLIGHT).append(String.valueOf(claim.eventTitle));
+			.append(config.accent(), String.valueOf(claim.eventTitle));
 
 		message.append(ChatColorType.NORMAL)
 			.append("PENDING".equals(claim.status) ? " - waiting for review" : " - approved");
@@ -523,7 +525,7 @@ public class OsrsEventsPlugin extends Plugin
 	/** One builder per line: appending an already-built string escapes its tags. */
 	private ChatMessageBuilder line()
 	{
-		return new ChatMessageBuilder().append(ChatColorType.HIGHLIGHT).append("OSRS Events: ");
+		return new ChatMessageBuilder().append(config.accent(), "OSRS Events: ");
 	}
 
 	private void chat(String text)

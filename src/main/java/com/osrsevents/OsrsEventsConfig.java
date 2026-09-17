@@ -1,5 +1,6 @@
 package com.osrsevents;
 
+import java.awt.Color;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
@@ -99,5 +100,16 @@ public interface OsrsEventsConfig extends Config
 	default int refreshSeconds()
 	{
 		return 60;
+	}
+
+	@ConfigItem(
+		keyName = "accent",
+		name = "Chat accent",
+		description = "Colour for the OSRS Events prefix and the names it mentions. The rest follows your own chat colours.",
+		position = 8
+	)
+	default Color accent()
+	{
+		return new Color(0xFF981F);
 	}
 }
