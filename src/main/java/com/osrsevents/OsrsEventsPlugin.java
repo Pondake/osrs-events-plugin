@@ -436,6 +436,7 @@ public class OsrsEventsPlugin extends Plugin
 				if (events != null)
 				{
 					announceVerdicts(events.reviews);
+					proveName(events, announce);
 
 					if (announce)
 					{
@@ -494,6 +495,45 @@ public class OsrsEventsPlugin extends Plugin
 		}
 
 		verdictsSeeded = true;
+	}
+
+	/**
+	 * Tell the site which character this client is signed in as.
+	 *
+	 * Anybody can type somebody else's name on the site, and nothing there
+	 * can tell the difference. This is the one thing a game client knows that
+	 * a web form does not, so the site asks for it: a name nobody has ever
+	 * played from a client does not get its claims approved automatically.
+	 *
+	 * Only sent when it matches what the account says and the site does not
+	 * already have it. A mismatch is already announced by announceConnection,
+	 * and sending it anyway would prove nothing.
+	 */
+	private void proveName(ApiModels.EventsResponse events, boolean announce)
+	{
+		if (events.proven || events.rsn == null || events.rsn.isEmpty())
+		{
+			return;
+		}
+
+		clientThread.invokeLater(() ->
+		{
+			Player local = client.getLocalPlayer();
+			String character = local == null ? null : local.getName();
+
+			if (character == null || !sameRsn(character, events.rsn))
+			{
+				return;
+			}
+
+			api.postIdentity(new ApiModels.Identity(character), (status, body) ->
+			{
+				if (status == 200 && announce)
+				{
+					chat("Your name " + events.rsn + " is now proven. Claims from this account can be approved without a host checking them.");
+				}
+			});
+		});
 	}
 
 	private void announceConnection(ApiModels.EventsResponse events)

@@ -65,6 +65,17 @@ class OsrsEventsApi
 		send(request.newBuilder().post(RequestBody.create(JSON, gson.toJson(completion))).build(), result);
 	}
 
+	void postIdentity(ApiModels.Identity identity, Result result)
+	{
+		Request request = request("identity");
+		if (request == null)
+		{
+			result.done(-1, null);
+			return;
+		}
+		send(request.newBuilder().post(RequestBody.create(JSON, gson.toJson(identity))).build(), result);
+	}
+
 	<T> T parse(String body, Class<T> type)
 	{
 		try

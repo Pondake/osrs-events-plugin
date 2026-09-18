@@ -48,10 +48,19 @@ final class ApiModels
 		final Context context;
 	}
 
+	/** The character this client is signed in as, for POST /identity. */
+	@AllArgsConstructor
+	static class Identity
+	{
+		final String rsn;
+	}
+
 	static class EventsResponse
 	{
 		String mode;
 		String rsn;
+		/** Whether a client has ever reported this account playing `rsn`. */
+		boolean proven;
 		List<EventInfo> events;
 		List<Verdict> reviews;
 		List<String> watch;
