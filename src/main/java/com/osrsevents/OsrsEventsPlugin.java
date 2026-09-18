@@ -220,9 +220,17 @@ public class OsrsEventsPlugin extends Plugin
 		{
 			return;
 		}
+		String source = event.getName();
 		ApiModels.Context context = context("loot", null, event.getItems());
-		context.npcName = event.getName();
-		context.killCount = killCounts.get(NameMatcher.normalize(String.valueOf(event.getName())));
+		context.npcName = source;
+		context.killCount = killCounts.get(NameMatcher.normalize(String.valueOf(source)));
+
+		// The source is a claimable thing in its own right, the same way an
+		// NPC is. RuneLite names these events after what was done — the loot
+		// tracker's "Herbiboar", "Barrows", "Guardians of the Rift" — so a
+		// square asking for the activity rather than one of its drops has
+		// something to match. A name nothing watches is dropped anyway.
+		report("npc_kill", source, 1, context);
 
 		reportItems(event.getItems(), context);
 	}
