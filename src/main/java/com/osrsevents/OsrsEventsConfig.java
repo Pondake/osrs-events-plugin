@@ -116,7 +116,7 @@ public interface OsrsEventsConfig extends Config
 	)
 	default Color accent()
 	{
-		return new Color(0xC86414);
+		return new Color(0xA34000);
 	}
 
 	@ConfigItem(
