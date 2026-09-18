@@ -96,6 +96,7 @@ public class OsrsEventsPlugin extends Plugin
 	private final Map<String, Integer> killCounts = new HashMap<>();
 	private final Map<String, Integer> killCountTicks = new HashMap<>();
 	private final Map<String, Integer> activityTicks = new HashMap<>();
+	private final Map<String, Integer> activityCounts = new HashMap<>();
 	private boolean loginPending = true;
 	private final Set<String> seenVerdicts = new HashSet<>();
 	private boolean verdictsSeeded;
@@ -130,6 +131,7 @@ public class OsrsEventsPlugin extends Plugin
 		killCounts.clear();
 		killCountTicks.clear();
 		activityTicks.clear();
+		activityCounts.clear();
 		verdictsSeeded = false;
 		rejected = false;
 	}
@@ -332,6 +334,51 @@ public class OsrsEventsPlugin extends Plugin
 		return Integer.valueOf(client.getTickCount()).equals(killCountTicks.get(key)) ? killCounts.get(key) : null;
 	}
 
+	/**
+	 * Whether this activity has already been reported for the thing that just
+	 * happened. One thing done is one report, and two of them do not walk a
+	 * counted square two steps.
+	 *
+	 * The same activity reaches us by two roads and they do not arrive
+	 * together:
+	 *
+	 * - A Herbiboar harvest raises a loot event and a "Your herbiboar harvest
+	 *   count is:" message in the **same tick**.
+	 * - A Guardians of the Rift game announces the closed rift when the game
+	 *   ends, and the reward chest is searched **minutes later** — same
+	 *   activity, far apart, so a tick is no help.
+	 *
+	 * So a report is suppressed when it repeats the tick, or when it repeats
+	 * a kill count already reported for that name. The counter moving is what
+	 * says another one was done; a second road to the same number is the same
+	 * event arriving twice.
+	 *
+	 * An activity with no counter at all keeps working: nothing to repeat, so
+	 * only the tick rule applies.
+	 *
+	 * Items are deliberately not covered. Two kills in one tick really are two
+	 * drops, and dropping the second would lose a report that counts.
+	 */
+	private boolean reportedAlready(String name)
+	{
+		String key = NameMatcher.normalize(name);
+		int tick = client.getTickCount();
+		Integer count = killCounts.get(key);
+
+		boolean sameTick = Integer.valueOf(tick).equals(activityTicks.get(key));
+		boolean sameCount = count != null && count.equals(activityCounts.get(key));
+
+		if (sameTick || sameCount)
+		{
+			return true;
+		}
+
+		activityTicks.put(key, tick);
+		activityCounts.put(key, count);
+
+		return false;
+	}
+
 	private void report(String kind, String name, int quantity, ApiModels.Context context)
 	{
 		if (!config.enabled() || rejected || !api.isConfigured() || name == null || !watch.contains(NameMatcher.normalize(name)))
@@ -339,17 +386,7 @@ public class OsrsEventsPlugin extends Plugin
 			return;
 		}
 
-		// One thing done is one report. A single Herbiboar harvest raises both
-		// a loot event and a "Your herbiboar harvest count is:" message in the
-		// same tick, and a Zalcano kill raises the kill count and the loot the
-		// same way — two names that normalise to one, so a counted square was
-		// walked two steps by one kill. Whichever arrives first wins the tick.
-		//
-		// Items are deliberately not covered: two kills in one tick really are
-		// two drops, and suppressing the second would lose a report that
-		// counts. Only the activity itself can arrive twice for one event.
-		if ("npc_kill".equals(kind)
-			&& Integer.valueOf(client.getTickCount()).equals(activityTicks.put(NameMatcher.normalize(name), client.getTickCount())))
+		if ("npc_kill".equals(kind) && reportedAlready(name))
 		{
 			return;
 		}
