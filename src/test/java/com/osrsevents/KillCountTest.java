@@ -61,6 +61,32 @@ public class KillCountTest
 	public void ignoresALineThatOnlyLooksLikeOne()
 	{
 		assertNull(parse("Your reward is: 500 coins."));
-		assertNull(parse("You have completed 5 rumours for the Hunter Guild."));
+		assertNull(parse("You have killed 5 chickens."));
+	}
+
+	/**
+	 * Counters with a wording of their own. The name is the wiki page title,
+	 * because that is what a task links and what the server matches against —
+	 * RuneLite's own "Hunter Rumours" would never match a square titled after
+	 * the wiki's "Hunters' Rumours".
+	 */
+	@Test
+	public void readsTheCountersWithTheirOwnWording()
+	{
+		KillCount.Parsed rumours = parse("You have completed @red@12</col> rumours for the Hunter Guild.");
+		assertEquals("Hunters' Rumours", rumours.name);
+		assertEquals(12, rumours.count);
+
+		assertEquals("Hunters' Rumours", parse("You have completed @red@1</col> rumour for the Hunter Guild.").name);
+
+		KillCount.Parsed rifts = parse("Amount of Rifts you have closed: <col=ff0000>1,234</col>.");
+		assertEquals("Guardians of the Rift", rifts.name);
+		assertEquals(1234, rifts.count);
+
+		KillCount.Parsed coffin = parse("You have opened the Grand Hallowed Coffin <col=ff0000>57</col> times!");
+		assertEquals("Grand Hallowed Coffin", coffin.name);
+		assertEquals(57, coffin.count);
+
+		assertEquals(1, parse("You have opened the Grand Hallowed Coffin <col=ff0000>1</col> time!").count);
 	}
 }
