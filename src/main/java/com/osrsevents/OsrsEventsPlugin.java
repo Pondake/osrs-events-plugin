@@ -94,6 +94,8 @@ public class OsrsEventsPlugin extends Plugin
 	private int ticks;
 	private int retryTicks;
 	private final Map<String, Integer> killCounts = new HashMap<>();
+	private final Map<String, Integer> killCountTicks = new HashMap<>();
+	private final Map<String, Integer> activityTicks = new HashMap<>();
 	private boolean loginPending = true;
 	private final Set<String> seenVerdicts = new HashSet<>();
 	private boolean verdictsSeeded;
@@ -126,6 +128,8 @@ public class OsrsEventsPlugin extends Plugin
 		queue.clear();
 		seenVerdicts.clear();
 		killCounts.clear();
+		killCountTicks.clear();
+		activityTicks.clear();
 		verdictsSeeded = false;
 		rejected = false;
 	}
@@ -223,7 +227,7 @@ public class OsrsEventsPlugin extends Plugin
 		String source = event.getName();
 		ApiModels.Context context = context("loot", null, event.getItems());
 		context.npcName = source;
-		context.killCount = killCounts.get(NameMatcher.normalize(String.valueOf(source)));
+		context.killCount = killCountFor(String.valueOf(source));
 
 		// The source is a claimable thing in its own right, the same way an
 		// NPC is. RuneLite names these events after what was done — the loot
@@ -249,6 +253,7 @@ public class OsrsEventsPlugin extends Plugin
 		if (killCount != null)
 		{
 			killCounts.put(NameMatcher.normalize(killCount.name), killCount.count);
+			killCountTicks.put(NameMatcher.normalize(killCount.name), client.getTickCount());
 
 			// The only signal a minigame gives: Tempoross and friends drop no loot on
 			// the kill itself, so without this nothing would ever claim their square.
@@ -291,7 +296,7 @@ public class OsrsEventsPlugin extends Plugin
 			context.npcId = npc.getId();
 			context.npcName = npc.getName();
 			context.npcLevel = npc.getCombatLevel();
-			context.killCount = killCounts.get(NameMatcher.normalize(npc.getName()));
+			context.killCount = killCountFor(npc.getName());
 		}
 
 		Player local = client.getLocalPlayer();
@@ -311,9 +316,40 @@ public class OsrsEventsPlugin extends Plugin
 		return context;
 	}
 
+	/**
+	 * The kill count belonging to this event, or null.
+	 *
+	 * Only a count from the same tick counts as belonging to it. The message
+	 * and the loot arrive together, and an older one is the *previous* kill —
+	 * attaching it would hand the server a number it has already counted, and
+	 * a square asking for five kills would sit still on the second. RuneLite
+	 * expires the same association on the same rule.
+	 */
+	private Integer killCountFor(String name)
+	{
+		String key = NameMatcher.normalize(name);
+
+		return Integer.valueOf(client.getTickCount()).equals(killCountTicks.get(key)) ? killCounts.get(key) : null;
+	}
+
 	private void report(String kind, String name, int quantity, ApiModels.Context context)
 	{
 		if (!config.enabled() || rejected || !api.isConfigured() || name == null || !watch.contains(NameMatcher.normalize(name)))
+		{
+			return;
+		}
+
+		// One thing done is one report. A single Herbiboar harvest raises both
+		// a loot event and a "Your herbiboar harvest count is:" message in the
+		// same tick, and a Zalcano kill raises the kill count and the loot the
+		// same way — two names that normalise to one, so a counted square was
+		// walked two steps by one kill. Whichever arrives first wins the tick.
+		//
+		// Items are deliberately not covered: two kills in one tick really are
+		// two drops, and suppressing the second would lose a report that
+		// counts. Only the activity itself can arrive twice for one event.
+		if ("npc_kill".equals(kind)
+			&& Integer.valueOf(client.getTickCount()).equals(activityTicks.put(NameMatcher.normalize(name), client.getTickCount())))
 		{
 			return;
 		}
