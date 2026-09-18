@@ -89,4 +89,22 @@ public class KillCountTest
 
 		assertEquals(1, parse("You have opened the Grand Hallowed Coffin <col=ff0000>1</col> time!").count);
 	}
+
+	/**
+	 * Each floor counts on its own, which is what makes "run floor 1 twenty
+	 * times" expressible. The name is not a wiki page title and does not need
+	 * to be — a task links a page, but its title is free text and the title
+	 * is what a report is matched against.
+	 */
+	@Test
+	public void countsEachSepulchreFloorSeparately()
+	{
+		KillCount.Parsed first = parse("You have completed Floor 1 of the Hallowed Sepulchre! Total completions: <col=ff0000>50</col>.");
+		assertEquals("Hallowed Sepulchre Floor 1", first.name);
+		assertEquals(50, first.count);
+
+		KillCount.Parsed fifth = parse("You have completed Floor 5 of the Hallowed Sepulchre! Total completions: <col=ff0000>50</col>.");
+		assertEquals("Hallowed Sepulchre Floor 5", fifth.name);
+		assertEquals(50, fifth.count);
+	}
 }

@@ -43,17 +43,28 @@ final class KillCount
 		"Amount of Rifts you have closed: (?:@[^@]+@)?(?<count>[0-9,]+)", Pattern.CASE_INSENSITIVE);
 
 	/**
-	 * The coffin, not the floors.
-	 *
-	 * A floor line carries that floor's own total, so floor 1 and floor 5 can
-	 * both report the same number and the second would be swallowed as an
-	 * already-counted kill. The coffin is opened once at the end of a full
-	 * run, which is the thing a square means by "do the Sepulchre N times",
-	 * and it has a wiki page of its own. A square for this must carry the
-	 * title Grand Hallowed Coffin.
+	 * A full run: the coffin is opened once at the end of one. A square that
+	 * means "do the Sepulchre N times" means this.
 	 */
 	private static final Pattern COFFIN = Pattern.compile(
 		"You have opened the Grand Hallowed Coffin (?:@[^@]+@)?(?<count>[0-9,]+) times?");
+
+	/**
+	 * One floor, counted per floor.
+	 *
+	 * Every floor carries its **own** total, so naming each floor separately
+	 * is what keeps them apart — floor 1 at 50 and floor 5 at 50 are two
+	 * different targets, not the same count twice. That makes "run floor 1
+	 * twenty times" expressible, which one shared name could never be.
+	 *
+	 * The reported name is not a wiki page and does not have to be: a task
+	 * links a wiki page, but its title is free text, and the title is what a
+	 * report is matched against. A square for this carries the title
+	 * "Hallowed Sepulchre Floor 1".
+	 */
+	private static final Pattern FLOOR = Pattern.compile(
+		"You have completed Floor (?<floor>[0-9]+) of the Hallowed Sepulchre! "
+			+ "Total completions: (?:@[^@]+@)?(?<count>[0-9,]+)");
 
 	private static final Pattern PATTERN = Pattern.compile(
 		"Your (?<pre>completion count for |subdued |completed )?(?<name>.+?) "
@@ -118,7 +129,18 @@ final class KillCount
 			return rifts;
 		}
 
-		return match(COFFIN, message, "Grand Hallowed Coffin");
+		Parsed coffin = match(COFFIN, message, "Grand Hallowed Coffin");
+		if (coffin != null)
+		{
+			return coffin;
+		}
+
+		Matcher floor = FLOOR.matcher(message);
+
+		return floor.find()
+			? new Parsed("Hallowed Sepulchre Floor " + floor.group("floor"),
+				Integer.parseInt(floor.group("count").replace(",", "")))
+			: null;
 	}
 
 	private static Parsed match(Pattern pattern, String message, String name)
