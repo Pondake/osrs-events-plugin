@@ -1,12 +1,10 @@
-<img src="icon.png" width="48" height="48" align="left" alt="">
+![](icon.png)
 
 # OSRS Events — RuneLite plugin
 
 Claims bingo squares and Snakes &amp; Ladders tiles on
 [osrs-events](https://osrs-events.com) the moment the game shows you got the
 drop, killed the boss or finished the run.
-
-<br clear="left">
 
 > Early development. Not on the Plugin Hub yet.
 
@@ -18,13 +16,15 @@ game, the plugin reports it and the site decides whether it claims anything.
 
 The claim is announced in chat as it lands:
 
-```
-OSRS Events: Zalcano 3 / 5 in Clan bingo night
-OSRS Events: Claimed Abyssal whip in Clan bingo night - approved
-```
+![A rumour handed in, and the square it claimed](docs/chat.png)
 
 A square that asks for five kills says how far along it is instead of sitting
-silent until the fifth.
+silent until the fifth:
+
+```
+OSRS Events: Zalcano 3 / 5 in Clan bingo night
+OSRS Events: Claimed Zalcano in Clan bingo night - approved
+```
 
 ## What it can claim
 
