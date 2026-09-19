@@ -40,8 +40,8 @@ public class NameMatcherTest
 	@Test
 	public void rsnComparesLikeTheGame()
 	{
-		assertTrue(OsrsEventsPlugin.sameRsn("Iron Pondake", "iron_pondake"));
-		assertTrue(OsrsEventsPlugin.sameRsn("Iron-Pondake", "Iron Pondake"));
-		assertFalse(OsrsEventsPlugin.sameRsn("Pondake", "Zezima"));
+		assertTrue(OsrsEventsPlugin.sameRsn("Iron Kettle", "iron_kettle"));
+		assertTrue(OsrsEventsPlugin.sameRsn("Iron-Kettle", "Iron Kettle"));
+		assertFalse(OsrsEventsPlugin.sameRsn("Kettle", "Zezima"));
 	}
 }

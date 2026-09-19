@@ -15,3 +15,9 @@ credentials.properties
 # Backlog hoort niet in deze repo
 docs/backlog.md
 BACKLOG.md
+
+# Agent scratch and local editor state
+.claude/
+*.local.json
+.env
+.env.*
