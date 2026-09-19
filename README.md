@@ -6,8 +6,6 @@ Claims bingo squares and Snakes &amp; Ladders tiles on
 [osrs-events](https://osrs-events.com) the moment the game shows you got the
 drop, killed the boss or finished the run.
 
-> Early development. Not on the Plugin Hub yet.
-
 ## What it does
 
 Your event host builds a board. The site tells the plugin which names that

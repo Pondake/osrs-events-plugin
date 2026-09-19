@@ -16,7 +16,9 @@ credentials.properties
 docs/backlog.md
 BACKLOG.md
 
-# Agent scratch and local editor state
+# Agent instructions and local editor state: useful here, noise in a public repo
+CLAUDE.md
+AGENTS.md
 .claude/
 *.local.json
 .env
