@@ -421,7 +421,7 @@ public class OsrsEventsPlugin extends Plugin
 		{
 			if (announce)
 			{
-				chat("Paste your plugin code and check the Server setting.");
+				chat("Paste your plugin code and check the Server setting. It must start with https://.");
 			}
 			return;
 		}

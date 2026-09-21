@@ -39,9 +39,17 @@ class OsrsEventsApi
 	@Inject
 	private OsrsEventsConfig config;
 
+	/** The plugin code goes in a header, so it only ever travels over https. Anything else is not a server. */
+	static HttpUrl baseUrl(String serverUrl)
+	{
+		HttpUrl url = HttpUrl.parse(serverUrl.trim());
+
+		return url != null && url.isHttps() ? url : null;
+	}
+
 	boolean isConfigured()
 	{
-		return !config.token().trim().isEmpty() && HttpUrl.parse(config.serverUrl().trim()) != null;
+		return !config.token().trim().isEmpty() && baseUrl(config.serverUrl()) != null;
 	}
 
 	void fetchEvents(Result result)
@@ -101,7 +109,7 @@ class OsrsEventsApi
 	private Request request(String path)
 	{
 		String token = config.token().trim();
-		HttpUrl base = HttpUrl.parse(config.serverUrl().trim());
+		HttpUrl base = baseUrl(config.serverUrl());
 		if (token.isEmpty() || base == null)
 		{
 			return null;
