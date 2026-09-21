@@ -45,7 +45,7 @@ import net.runelite.http.api.loottracker.LootRecordType;
 @Slf4j
 @PluginDescriptor(
 	name = "OSRS Events",
-	description = "Completes bingo squares and board tiles on osrs-events.com",
+	description = "Auto-completes event tasks on osrs-events.com",
 	tags = {"bingo", "clan", "events"}
 )
 public class OsrsEventsPlugin extends Plugin
