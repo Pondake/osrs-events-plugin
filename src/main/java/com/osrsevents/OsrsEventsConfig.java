@@ -108,11 +108,23 @@ public interface OsrsEventsConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "chatOtherCharacter",
+		name = "Other characters",
+		description = "Say in chat when you are logged in as another character than the one on the site. Drops from that character are not sent either way.",
+		section = CHAT,
+		position = 24
+	)
+	default boolean chatOtherCharacter()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "accent",
 		name = "Accent colour",
 		description = "Colour for the OSRS Events prefix and the names it mentions. The rest follows your own chat colours.",
 		section = CHAT,
-		position = 24
+		position = 25
 	)
 	default Color accent()
 	{
@@ -124,7 +136,7 @@ public interface OsrsEventsConfig extends Config
 		name = "Approved colour",
 		description = "Colour for a claim that counted. Only the verdict uses it, so an approval is readable at a glance.",
 		section = CHAT,
-		position = 25
+		position = 26
 	)
 	default Color approvedColour()
 	{
@@ -136,7 +148,7 @@ public interface OsrsEventsConfig extends Config
 		name = "Rejected colour",
 		description = "Colour for a claim a host turned down",
 		section = CHAT,
-		position = 26
+		position = 27
 	)
 	default Color rejectedColour()
 	{

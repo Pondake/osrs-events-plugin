@@ -95,6 +95,8 @@ public class OsrsEventsPlugin extends Plugin
 	private final ConcurrentLinkedDeque<Pending> queue = new ConcurrentLinkedDeque<>();
 	private final AtomicBoolean sending = new AtomicBoolean();
 	private volatile boolean rejected;
+	/** The OSRS name on the site account, from the last answer. Empty until known or when the account has none. */
+	private volatile String accountRsn = "";
 	private int ticks;
 	private int retryTicks;
 	private final Map<String, Integer> killCounts = new HashMap<>();
@@ -138,6 +140,7 @@ public class OsrsEventsPlugin extends Plugin
 		activityCounts.clear();
 		verdictsSeeded = false;
 		rejected = false;
+		accountRsn = "";
 	}
 
 	@Subscribe
@@ -165,6 +168,7 @@ public class OsrsEventsPlugin extends Plugin
 
 		rejected = false;
 		watch = Collections.emptySet();
+		accountRsn = "";
 		refreshWatch(config.chatStatus());
 	}
 
@@ -401,6 +405,12 @@ public class OsrsEventsPlugin extends Plugin
 			return;
 		}
 
+		// The server refuses any other name, so it is not worth a request per drop.
+		if (!isAccountCharacter(local.getName(), accountRsn))
+		{
+			return;
+		}
+
 		queue.add(new Pending(new ApiModels.Completion(
 			UUID.randomUUID().toString(),
 			kind,
@@ -436,6 +446,7 @@ public class OsrsEventsPlugin extends Plugin
 			{
 				ApiModels.EventsResponse events = api.parse(body, ApiModels.EventsResponse.class);
 				watch = events == null || events.watch == null ? Collections.emptySet() : new HashSet<>(events.watch);
+				accountRsn = events == null || events.rsn == null ? "" : events.rsn;
 				log.debug("osrs-events watching {} names", watch.size());
 				if (events != null)
 				{
@@ -554,7 +565,11 @@ public class OsrsEventsPlugin extends Plugin
 			}
 			else if (character != null && !sameRsn(character, events.rsn))
 			{
-				chat("Connected as " + events.rsn + ", but you are logged in as " + character + ". Drops from this character will be refused. Change your name at " + nameSettingsUrl() + " to match, or log in as " + events.rsn + ".");
+				// Said once, at login. After that the plugin stays quiet: drops from this character are not sent.
+				if (config.chatOtherCharacter())
+				{
+					chat("Connected as " + events.rsn + ", but you are logged in as " + character + ". Drops from this character are not sent. Change your name at " + nameSettingsUrl() + " to match, or log in as " + events.rsn + ".");
+				}
 			}
 			else if (watch.isEmpty())
 			{
@@ -573,6 +588,12 @@ public class OsrsEventsPlugin extends Plugin
 		HttpUrl base = OsrsEventsApi.baseUrl(config.serverUrl());
 
 		return base == null ? "the site" : base.resolve("/settings/connections").toString();
+	}
+
+	/** Whether this character is the one on the site account. An account without a name matches nothing. */
+	static boolean isAccountCharacter(String character, String accountRsn)
+	{
+		return character != null && accountRsn != null && !accountRsn.isEmpty() && sameRsn(character, accountRsn);
 	}
 
 	static boolean sameRsn(String a, String b)
@@ -646,6 +667,7 @@ public class OsrsEventsPlugin extends Plugin
 	private void stop(int status, String body)
 	{
 		watch = Collections.emptySet();
+		accountRsn = "";
 		queue.clear();
 
 		if (status == 401)
