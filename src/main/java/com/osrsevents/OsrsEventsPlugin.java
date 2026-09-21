@@ -38,8 +38,10 @@ import net.runelite.client.events.NpcLootReceived;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.ItemStack;
 import net.runelite.client.plugins.Plugin;
+import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.loottracker.LootReceived;
+import net.runelite.client.plugins.loottracker.LootTrackerPlugin;
 import net.runelite.http.api.loottracker.LootRecordType;
 
 @Slf4j
@@ -48,6 +50,7 @@ import net.runelite.http.api.loottracker.LootRecordType;
 	description = "Auto-completes event tasks on osrs-events.com",
 	tags = {"bingo", "clan", "events"}
 )
+@PluginDependency(LootTrackerPlugin.class)
 public class OsrsEventsPlugin extends Plugin
 {
 	private static final String COLLECTION_LOG_PREFIX = "New item added to your collection log:";
