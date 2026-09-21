@@ -43,6 +43,7 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.loottracker.LootReceived;
 import net.runelite.client.plugins.loottracker.LootTrackerPlugin;
 import net.runelite.http.api.loottracker.LootRecordType;
+import okhttp3.HttpUrl;
 
 @Slf4j
 @PluginDescriptor(
@@ -549,37 +550,29 @@ public class OsrsEventsPlugin extends Plugin
 
 			if (events.rsn == null || events.rsn.isEmpty())
 			{
-				chat("Connected with " + codeHint() + ", but your account has no OSRS username. Set it on the site first.");
+				chat("Connected, but your account has no OSRS username. Set it at " + nameSettingsUrl() + ".");
 			}
 			else if (character != null && !sameRsn(character, events.rsn))
 			{
-				chat("Connected as " + events.rsn + " with " + codeHint() + ", but you are logged in as " + character + ". Drops from this character will be refused.");
+				chat("Connected as " + events.rsn + ", but you are logged in as " + character + ". Drops from this character will be refused. Change your name at " + nameSettingsUrl() + " to match, or log in as " + events.rsn + ".");
 			}
 			else if (watch.isEmpty())
 			{
-				chat("Connected as " + events.rsn + " with " + codeHint() + ". Nothing to watch yet: " + (events.events == null ? 0 : events.events.size()) + " running events, none with an open wiki-linked square or tile.");
+				chat("Connected as " + events.rsn + ". Nothing to watch yet: " + (events.events == null ? 0 : events.events.size()) + " running events, none with an open wiki-linked square or tile.");
 			}
 			else
 			{
-				chat("Connected as " + events.rsn + " with " + codeHint() + ". Watching " + watch.size() + " names in " + eventCount + (eventCount == 1 ? " event." : " events."));
+				chat("Connected as " + events.rsn + ". Watching " + watch.size() + " names in " + eventCount + (eventCount == 1 ? " event." : " events."));
 			}
 		});
 	}
 
-	/**
-	 * Which code this client is actually using, by its last four characters.
-	 *
-	 * A code left behind from an earlier account kept working once and cost a
-	 * whole test round before anyone noticed, so the check says which one it
-	 * connected with. Four characters identify it against the site without
-	 * putting the code itself in the chatbox, where a screenshot would carry
-	 * it away.
-	 */
-	private String codeHint()
+	/** Where a player sets the OSRS name on the site. */
+	private String nameSettingsUrl()
 	{
-		String token = config.token().trim();
+		HttpUrl base = OsrsEventsApi.baseUrl(config.serverUrl());
 
-		return token.length() <= 4 ? "your code" : "code ..." + token.substring(token.length() - 4);
+		return base == null ? "the site" : base.resolve("/settings/connections").toString();
 	}
 
 	static boolean sameRsn(String a, String b)
