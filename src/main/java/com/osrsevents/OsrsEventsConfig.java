@@ -181,7 +181,7 @@ public interface OsrsEventsConfig extends Config
 	@ConfigItem(
 		keyName = "serverUrl",
 		name = "Server",
-		description = "Only change this when testing against another environment. Must start with https://",
+		description = "Only change this when testing against another environment. Must start with https://, or http://127.0.0.1 for a server on this machine",
 		section = ADVANCED,
 		position = 31
 	)

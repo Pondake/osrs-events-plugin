@@ -39,12 +39,17 @@ class OsrsEventsApi
 	@Inject
 	private OsrsEventsConfig config;
 
-	/** The plugin code goes in a header, so it only ever travels over https. Anything else is not a server. */
+	/**
+	 * The plugin code goes in a header, so it only ever travels over https.
+	 * The one exception is http to 127.0.0.1: that never leaves the machine,
+	 * and it is how a local development server is reached. Anything else is
+	 * not a server.
+	 */
 	static HttpUrl baseUrl(String serverUrl)
 	{
 		HttpUrl url = HttpUrl.parse(serverUrl.trim());
 
-		return url != null && url.isHttps() ? url : null;
+		return url != null && (url.isHttps() || "127.0.0.1".equals(url.host())) ? url : null;
 	}
 
 	boolean isConfigured()

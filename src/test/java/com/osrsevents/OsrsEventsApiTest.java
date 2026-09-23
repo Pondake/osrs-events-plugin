@@ -8,12 +8,14 @@ import org.junit.Test;
 public class OsrsEventsApiTest
 {
 	@Test
-	public void acceptsHttpsOnly()
+	public void acceptsHttpsOnlyExceptOnThisMachine()
 	{
 		assertEquals("https://osrs-events.com/", OsrsEventsApi.baseUrl("https://osrs-events.com").toString());
 		assertEquals("https://osrs-events.test/", OsrsEventsApi.baseUrl(" https://osrs-events.test ").toString());
+		assertEquals("http://127.0.0.1:8010/", OsrsEventsApi.baseUrl("http://127.0.0.1:8010").toString());
 		assertNull(OsrsEventsApi.baseUrl("http://osrs-events.com"));
-		assertNull(OsrsEventsApi.baseUrl("http://127.0.0.1:8010"));
+		assertNull(OsrsEventsApi.baseUrl("http://192.168.1.10:8010"));
+		assertNull(OsrsEventsApi.baseUrl("http://localhost:8010"));
 		assertNull(OsrsEventsApi.baseUrl("osrs-events.com"));
 		assertNull(OsrsEventsApi.baseUrl(""));
 	}

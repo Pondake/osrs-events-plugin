@@ -174,7 +174,7 @@ class OsrsEventsPanel extends PluginPanel
 		JLabel title = text(String.valueOf(event.title));
 		title.setFont(FontManager.getRunescapeBoldFont());
 
-		if (event.url != null && event.url.startsWith("https://"))
+		if (event.url != null && OsrsEventsApi.baseUrl(event.url) != null)
 		{
 			title.setToolTipText("Open on the site");
 			title.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
