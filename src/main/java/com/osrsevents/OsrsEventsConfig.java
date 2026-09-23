@@ -72,6 +72,18 @@ public interface OsrsEventsConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "addAlts",
+		name = "Add new characters as alts",
+		description = "When you log in as a character that is not on your osrs-events account, add it as an alt, so its drops count too. Off: drops from that character are not sent.",
+		section = ACCOUNT,
+		position = 13
+	)
+	default boolean addAlts()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "chatStatus",
 		name = "Connection",
 		description = "Say in chat whether the plugin is connected, and what is wrong when it is not",
@@ -110,7 +122,7 @@ public interface OsrsEventsConfig extends Config
 	@ConfigItem(
 		keyName = "chatOtherCharacter",
 		name = "Other characters",
-		description = "Say in chat when you are logged in as another character than the one on the site. Drops from that character are not sent either way.",
+		description = "Say in chat when you are logged in as a character that is not on your account and could not be added. Drops from that character are not sent either way.",
 		section = CHAT,
 		position = 24
 	)

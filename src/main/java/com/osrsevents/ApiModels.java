@@ -53,6 +53,28 @@ final class ApiModels
 	static class Identity
 	{
 		final String rsn;
+		/** Whether the server may add this character to the account as an alt. */
+		@SerializedName("add_alt")
+		final boolean addAlt;
+	}
+
+	static class IdentityResponse
+	{
+		/** Whether the character is on the account after the call. */
+		boolean matched;
+		/** Whether this call added it as an alt. */
+		boolean added;
+		/** Why an unknown character was not added: disabled, limit or taken. */
+		String reason;
+		List<OsrsCharacter> characters;
+	}
+
+	/** One OSRS character on the account. The main comes first. */
+	static class OsrsCharacter
+	{
+		String rsn;
+		boolean main;
+		boolean proven;
 	}
 
 	static class EventsResponse
@@ -61,6 +83,10 @@ final class ApiModels
 		String rsn;
 		/** Whether a client has ever reported this account playing `rsn`. */
 		boolean proven;
+		/** Every character the account may report from, main first. Null from a server that predates alts. */
+		List<OsrsCharacter> characters;
+		@SerializedName("max_characters")
+		int maxCharacters;
 		List<EventInfo> events;
 		List<Verdict> reviews;
 		List<String> watch;

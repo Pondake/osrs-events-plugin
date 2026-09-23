@@ -95,8 +95,10 @@ public class OsrsEventsPlugin extends Plugin
 	private final ConcurrentLinkedDeque<Pending> queue = new ConcurrentLinkedDeque<>();
 	private final AtomicBoolean sending = new AtomicBoolean();
 	private volatile boolean rejected;
-	/** The OSRS name on the site account, from the last answer. Empty until known or when the account has none. */
-	private volatile String accountRsn = "";
+	/** The OSRS characters on the site account, main first, from the last answer. Empty until known or when the account has none. */
+	private volatile List<ApiModels.OsrsCharacter> characters = Collections.emptyList();
+	/** The character POST /identity was already sent for since the last login, so a refresh does not repeat it. */
+	private volatile String identitySentFor;
 	private int ticks;
 	private int retryTicks;
 	private final Map<String, Integer> killCounts = new HashMap<>();
@@ -140,7 +142,8 @@ public class OsrsEventsPlugin extends Plugin
 		activityCounts.clear();
 		verdictsSeeded = false;
 		rejected = false;
-		accountRsn = "";
+		characters = Collections.emptyList();
+		identitySentFor = null;
 	}
 
 	@Subscribe
@@ -168,7 +171,8 @@ public class OsrsEventsPlugin extends Plugin
 
 		rejected = false;
 		watch = Collections.emptySet();
-		accountRsn = "";
+		characters = Collections.emptyList();
+		identitySentFor = null;
 		refreshWatch(config.chatStatus());
 	}
 
@@ -179,6 +183,8 @@ public class OsrsEventsPlugin extends Plugin
 		if (state == GameState.LOGIN_SCREEN || state == GameState.HOPPING)
 		{
 			loginPending = true;
+			// The next login may be another character.
+			identitySentFor = null;
 		}
 		// Loading screens also end in LOGGED_IN; only the first one after a login announces.
 		else if (state == GameState.LOGGED_IN && loginPending)
@@ -405,8 +411,8 @@ public class OsrsEventsPlugin extends Plugin
 			return;
 		}
 
-		// The server refuses any other name, so it is not worth a request per drop.
-		if (!isAccountCharacter(local.getName(), accountRsn))
+		// The server refuses a character that is not on the account, so it is not worth a request per drop.
+		if (!isAccountCharacter(local.getName(), characters))
 		{
 			return;
 		}
@@ -446,17 +452,12 @@ public class OsrsEventsPlugin extends Plugin
 			{
 				ApiModels.EventsResponse events = api.parse(body, ApiModels.EventsResponse.class);
 				watch = events == null || events.watch == null ? Collections.emptySet() : new HashSet<>(events.watch);
-				accountRsn = events == null || events.rsn == null ? "" : events.rsn;
+				characters = charactersOf(events);
 				log.debug("osrs-events watching {} names", watch.size());
 				if (events != null)
 				{
 					announceVerdicts(events.reviews);
-					proveName(events, announce);
-
-					if (announce)
-					{
-						announceConnection(events);
-					}
+					identify(events, announce);
 				}
 				return;
 			}
@@ -513,73 +514,122 @@ public class OsrsEventsPlugin extends Plugin
 	}
 
 	/**
-	 * Tell the site which character this client is signed in as.
+	 * Tell the site which character this client is signed in as, then say so in chat.
 	 *
 	 * Anybody can type somebody else's name on the site, and nothing there
 	 * can tell the difference. This is the one thing a game client knows that
 	 * a web form does not, so the site asks for it: a name nobody has ever
 	 * played from a client does not get its claims approved automatically.
 	 *
-	 * Only sent when it matches what the account says and the site does not
-	 * already have it. A mismatch is already announced by announceConnection,
-	 * and sending it anyway would prove nothing.
+	 * A character that is not on the account is sent too: with "Add new
+	 * characters as alts" on, the site adds it as an alt, and otherwise its
+	 * answer says why not. Sent once per login per character; a proven
+	 * character on the account needs nothing.
 	 */
-	private void proveName(ApiModels.EventsResponse events, boolean announce)
+	private void identify(ApiModels.EventsResponse events, boolean announce)
 	{
-		if (events.proven || events.rsn == null || events.rsn.isEmpty())
-		{
-			return;
-		}
-
 		clientThread.invokeLater(() ->
 		{
 			Player local = client.getLocalPlayer();
 			String character = local == null ? null : local.getName();
+			ApiModels.OsrsCharacter known = findCharacter(character, characters);
+			String sentFor = identitySentFor;
 
-			if (character == null || !sameRsn(character, events.rsn))
+			if (character == null || (known != null && known.proven) || (sentFor != null && sameRsn(character, sentFor)))
 			{
+				if (announce)
+				{
+					announceConnection(events, character, null, false);
+				}
 				return;
 			}
 
-			api.postIdentity(new ApiModels.Identity(character), (status, body) ->
+			identitySentFor = character;
+			api.postIdentity(new ApiModels.Identity(character, config.addAlts()), (status, body) ->
 			{
-				if (status == 200 && announce)
+				ApiModels.IdentityResponse identity = status == 200 ? api.parse(body, ApiModels.IdentityResponse.class) : null;
+				if (identity != null && identity.characters != null)
 				{
-					chat("Your name " + events.rsn + " is now proven. Claims from this account can be approved without a host checking them.");
+					characters = identity.characters;
+				}
+				if (announce)
+				{
+					announceConnection(events, character, identity, known != null && identity != null && identity.matched);
 				}
 			});
 		});
 	}
 
-	private void announceConnection(ApiModels.EventsResponse events)
+	/**
+	 * The login line: which of the account's characters this is, and what is watched.
+	 *
+	 * @param identity the answer to POST /identity when one was sent, else null
+	 * @param provedNow whether that answer proved a character that was already on the account
+	 */
+	private void announceConnection(ApiModels.EventsResponse events, String character, ApiModels.IdentityResponse identity, boolean provedNow)
 	{
-		long eventCount = events.events == null ? 0 : events.events.stream().filter(e -> e.targets != null && !e.targets.isEmpty()).count();
-		clientThread.invokeLater(() ->
-		{
-			Player local = client.getLocalPlayer();
-			String character = local == null ? null : local.getName();
+		List<ApiModels.OsrsCharacter> account = characters;
+		String main = mainRsn(account);
+		ApiModels.OsrsCharacter current = findCharacter(character, account);
 
-			if (events.rsn == null || events.rsn.isEmpty())
+		if (main == null)
+		{
+			chat("Connected, but your account has no OSRS character. Turn on Add new characters as alts and log in again, or set one at " + nameSettingsUrl() + ".");
+			return;
+		}
+
+		if (character != null && current == null)
+		{
+			// Said once, at login. After that the plugin stays quiet: drops from this character are not sent.
+			if (config.chatOtherCharacter())
 			{
-				chat("Connected, but your account has no OSRS username. Set it at " + nameSettingsUrl() + ".");
+				chat("You are logged in as " + character + ", which is not on your account. Drops from it are not sent. "
+					+ whyNotAdded(identity == null ? null : identity.reason, Math.max(events.maxCharacters, account.size())));
 			}
-			else if (character != null && !sameRsn(character, events.rsn))
-			{
-				// Said once, at login. After that the plugin stays quiet: drops from this character are not sent.
-				if (config.chatOtherCharacter())
-				{
-					chat("Connected as " + events.rsn + ", but you are logged in as " + character + ". Drops from this character are not sent. Change your name at " + nameSettingsUrl() + " to match, or log in as " + events.rsn + ".");
-				}
-			}
-			else if (watch.isEmpty())
-			{
-				chat("Connected as " + events.rsn + ". Nothing to watch yet: " + (events.events == null ? 0 : events.events.size()) + " running events, none with an open wiki-linked square or tile.");
-			}
-			else
-			{
-				chat("Connected as " + events.rsn + ". Watching " + watch.size() + " names in " + eventCount + (eventCount == 1 ? " event." : " events."));
-			}
-		});
+			return;
+		}
+
+		if (identity != null && identity.added)
+		{
+			chat(current == null || current.main
+				? "Added " + character + " to your account."
+				: "Added " + character + " to your account as an alt of " + main + ". Its drops count like the main's.");
+		}
+		else if (provedNow)
+		{
+			chat("Your name " + character + " is now proven. Claims from it can be approved without a host checking them.");
+		}
+
+		String as = current == null || current.main ? main : current.rsn + " (alt of " + main + ")";
+		long eventCount = events.events == null ? 0 : events.events.stream().filter(e -> e.targets != null && !e.targets.isEmpty()).count();
+
+		if (watch.isEmpty())
+		{
+			chat("Connected as " + as + ". Nothing to watch yet: " + (events.events == null ? 0 : events.events.size()) + " running events, none with an open wiki-linked square or tile.");
+		}
+		else
+		{
+			chat("Connected as " + as + ". Watching " + watch.size() + " names in " + eventCount + (eventCount == 1 ? " event." : " events."));
+		}
+	}
+
+	/** The rest of the line for a character that is not on the account, from the reason /identity gave. */
+	private String whyNotAdded(String reason, int maxCharacters)
+	{
+		if ("disabled".equals(reason))
+		{
+			return "Turn on Add new characters as alts to add it, or add it at " + nameSettingsUrl() + ".";
+		}
+		if ("limit".equals(reason))
+		{
+			return "Your account already holds " + maxCharacters + " characters, the most it can. Remove one at " + nameSettingsUrl() + " to make room.";
+		}
+		if ("taken".equals(reason))
+		{
+			return "Another account has already proven this name.";
+		}
+
+		return "Add it at " + nameSettingsUrl() + ".";
 	}
 
 	/** Where a player sets the OSRS name on the site. */
@@ -590,10 +640,58 @@ public class OsrsEventsPlugin extends Plugin
 		return base == null ? "the site" : base.resolve("/settings/connections").toString();
 	}
 
-	/** Whether this character is the one on the site account. An account without a name matches nothing. */
-	static boolean isAccountCharacter(String character, String accountRsn)
+	/** The account's characters, main first. A server that predates alts only sends the main's rsn and proven. */
+	static List<ApiModels.OsrsCharacter> charactersOf(ApiModels.EventsResponse events)
 	{
-		return character != null && accountRsn != null && !accountRsn.isEmpty() && sameRsn(character, accountRsn);
+		if (events == null)
+		{
+			return Collections.emptyList();
+		}
+		if (events.characters != null)
+		{
+			return events.characters;
+		}
+		if (events.rsn == null || events.rsn.isEmpty())
+		{
+			return Collections.emptyList();
+		}
+
+		ApiModels.OsrsCharacter main = new ApiModels.OsrsCharacter();
+		main.rsn = events.rsn;
+		main.main = true;
+		main.proven = events.proven;
+
+		return Collections.singletonList(main);
+	}
+
+	/** This character's entry on the account, or null. */
+	static ApiModels.OsrsCharacter findCharacter(String character, List<ApiModels.OsrsCharacter> characters)
+	{
+		if (character == null || characters == null)
+		{
+			return null;
+		}
+
+		return characters.stream()
+			.filter(c -> c.rsn != null && sameRsn(character, c.rsn))
+			.findFirst()
+			.orElse(null);
+	}
+
+	/** Whether this character may report: the main or one of its alts. An account without characters matches nothing. */
+	static boolean isAccountCharacter(String character, List<ApiModels.OsrsCharacter> characters)
+	{
+		return findCharacter(character, characters) != null;
+	}
+
+	/** The main's name, or null when the account has no character. */
+	static String mainRsn(List<ApiModels.OsrsCharacter> characters)
+	{
+		return characters.stream()
+			.filter(c -> c.main && c.rsn != null)
+			.map(c -> c.rsn)
+			.findFirst()
+			.orElse(null);
 	}
 
 	static boolean sameRsn(String a, String b)
@@ -667,7 +765,7 @@ public class OsrsEventsPlugin extends Plugin
 	private void stop(int status, String body)
 	{
 		watch = Collections.emptySet();
-		accountRsn = "";
+		characters = Collections.emptyList();
 		queue.clear();
 
 		if (status == 401)
