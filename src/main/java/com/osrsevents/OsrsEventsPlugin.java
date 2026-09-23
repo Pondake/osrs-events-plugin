@@ -42,6 +42,9 @@ import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.loottracker.LootReceived;
 import net.runelite.client.plugins.loottracker.LootTrackerPlugin;
+import net.runelite.client.ui.ClientToolbar;
+import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.util.ImageUtil;
 import net.runelite.http.api.loottracker.LootRecordType;
 import okhttp3.HttpUrl;
 
@@ -91,6 +94,12 @@ public class OsrsEventsPlugin extends Plugin
 	@Inject
 	private ConfigManager configManager;
 
+	@Inject
+	private ClientToolbar clientToolbar;
+
+	private OsrsEventsPanel panel;
+	private NavigationButton navButton;
+
 	private volatile Set<String> watch = Collections.emptySet();
 	private final ConcurrentLinkedDeque<Pending> queue = new ConcurrentLinkedDeque<>();
 	private final AtomicBoolean sending = new AtomicBoolean();
@@ -99,6 +108,8 @@ public class OsrsEventsPlugin extends Plugin
 	private volatile List<ApiModels.OsrsCharacter> characters = Collections.emptyList();
 	/** The character POST /identity was already sent for since the last login, so a refresh does not repeat it. */
 	private volatile String identitySentFor;
+	/** Why /identity did not add that character: disabled, limit, taken, or null. */
+	private volatile String notAddedReason;
 	private int ticks;
 	private int retryTicks;
 	private final Map<String, Integer> killCounts = new HashMap<>();
@@ -123,6 +134,19 @@ public class OsrsEventsPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
+		panel = new OsrsEventsPanel(this::checkConnection);
+		navButton = NavigationButton.builder()
+			.tooltip("OSRS Events")
+			.icon(ImageUtil.loadImageResource(getClass(), "panel.png"))
+			.priority(10)
+			.panel(panel)
+			.build();
+		if (config.showPanel())
+		{
+			clientToolbar.addNavigation(navButton);
+		}
+		showStatus();
+
 		if (client.getGameState() == GameState.LOGGED_IN)
 		{
 			loginPending = false;
@@ -133,6 +157,7 @@ public class OsrsEventsPlugin extends Plugin
 	@Override
 	protected void shutDown()
 	{
+		clientToolbar.removeNavigation(navButton);
 		watch = Collections.emptySet();
 		queue.clear();
 		seenVerdicts.clear();
@@ -144,6 +169,7 @@ public class OsrsEventsPlugin extends Plugin
 		rejected = false;
 		characters = Collections.emptyList();
 		identitySentFor = null;
+		notAddedReason = null;
 	}
 
 	@Subscribe
@@ -159,12 +185,20 @@ public class OsrsEventsPlugin extends Plugin
 			if ("true".equals(event.getNewValue()))
 			{
 				configManager.setConfiguration(OsrsEventsConfig.GROUP, "checkConnection", false);
-				rejected = false;
-				if (!config.enabled())
-				{
-					chat("Turn on Send completions first.");
-				}
-				refreshWatch(true);
+				checkConnection();
+			}
+			return;
+		}
+
+		if ("showPanel".equals(event.getKey()))
+		{
+			if (config.showPanel())
+			{
+				clientToolbar.addNavigation(navButton);
+			}
+			else
+			{
+				clientToolbar.removeNavigation(navButton);
 			}
 			return;
 		}
@@ -173,7 +207,38 @@ public class OsrsEventsPlugin extends Plugin
 		watch = Collections.emptySet();
 		characters = Collections.emptyList();
 		identitySentFor = null;
+		notAddedReason = null;
+		showStatus();
 		refreshWatch(config.chatStatus());
+	}
+
+	/** The config tick box and the panel button: try again now, and say the result in chat. */
+	private void checkConnection()
+	{
+		rejected = false;
+		if (!config.enabled())
+		{
+			chat("Turn on Send completions first.");
+		}
+		showStatus();
+		refreshWatch(true);
+	}
+
+	/** What the panel can say before the server has answered. */
+	private void showStatus()
+	{
+		if (!config.enabled())
+		{
+			panel.setStatus("Send completions is off. Turn it on in the plugin settings.", false);
+		}
+		else if (!api.isConfigured())
+		{
+			panel.setStatus("Paste your plugin code in the settings. The Server must start with https://.", false);
+		}
+		else
+		{
+			panel.setStatus("Connecting…", true);
+		}
 	}
 
 	@Subscribe
@@ -185,6 +250,11 @@ public class OsrsEventsPlugin extends Plugin
 			loginPending = true;
 			// The next login may be another character.
 			identitySentFor = null;
+			notAddedReason = null;
+			if (state == GameState.LOGIN_SCREEN)
+			{
+				panel.setCharacter("Not logged in", "");
+			}
 		}
 		// Loading screens also end in LOGGED_IN; only the first one after a login announces.
 		else if (state == GameState.LOGGED_IN && loginPending)
@@ -454,6 +524,8 @@ public class OsrsEventsPlugin extends Plugin
 				watch = events == null || events.watch == null ? Collections.emptySet() : new HashSet<>(events.watch);
 				characters = charactersOf(events);
 				log.debug("osrs-events watching {} names", watch.size());
+				panel.setStatus("Connected to " + config.serverUrl().trim() + ".", true);
+				panel.setEvents(events == null ? null : events.events);
 				if (events != null)
 				{
 					announceVerdicts(events.reviews);
@@ -466,6 +538,12 @@ public class OsrsEventsPlugin extends Plugin
 			{
 				stop(status, body);
 			}
+
+			panel.setEvents(null);
+			panel.setStatus(status == 401 ? "The plugin code was not recognised. Create a new one in your settings on the site."
+				: status == 404 ? "The plugin is switched off on " + config.serverUrl().trim() + "."
+				: status == -1 ? "No answer from " + config.serverUrl().trim() + "."
+				: "The server answered " + status + ".", false);
 
 			if (announce)
 			{
@@ -495,12 +573,17 @@ public class OsrsEventsPlugin extends Plugin
 
 		for (ApiModels.Verdict verdict : reviews)
 		{
-			if (verdict.id == null || !seenVerdicts.add(verdict.id) || !verdictsSeeded || !config.chatVerdicts())
+			if (verdict.id == null || !seenVerdicts.add(verdict.id) || !verdictsSeeded)
 			{
 				continue;
 			}
 
 			boolean approved = "APPROVED".equals(verdict.status);
+			panel.addRecent((verdict.label == null ? "Your claim" : verdict.label) + " in " + verdict.eventTitle + " was " + (approved ? "approved" : "rejected"));
+			if (!config.chatVerdicts())
+			{
+				continue;
+			}
 
 			chat(line()
 				.append(config.accent(), verdict.label == null ? "Your claim" : verdict.label)
@@ -537,10 +620,7 @@ public class OsrsEventsPlugin extends Plugin
 
 			if (character == null || (known != null && known.proven) || (sentFor != null && sameRsn(character, sentFor)))
 			{
-				if (announce)
-				{
-					announceConnection(events, character, null, false);
-				}
+				connected(events, character, null, false, announce);
 				return;
 			}
 
@@ -552,25 +632,31 @@ public class OsrsEventsPlugin extends Plugin
 				{
 					characters = identity.characters;
 				}
-				if (announce)
-				{
-					announceConnection(events, character, identity, known != null && identity != null && identity.matched);
-				}
+				notAddedReason = identity == null ? null : identity.reason;
+				connected(events, character, identity, known != null && identity != null && identity.matched, announce);
 			});
 		});
 	}
 
 	/**
-	 * The login line: which of the account's characters this is, and what is watched.
+	 * Which of the account's characters this is, in the panel always and in
+	 * chat with announce, together with what is watched.
 	 *
 	 * @param identity the answer to POST /identity when one was sent, else null
 	 * @param provedNow whether that answer proved a character that was already on the account
 	 */
-	private void announceConnection(ApiModels.EventsResponse events, String character, ApiModels.IdentityResponse identity, boolean provedNow)
+	private void connected(ApiModels.EventsResponse events, String character, ApiModels.IdentityResponse identity, boolean provedNow, boolean announce)
 	{
 		List<ApiModels.OsrsCharacter> account = characters;
 		String main = mainRsn(account);
 		ApiModels.OsrsCharacter current = findCharacter(character, account);
+		int maxCharacters = Math.max(events.maxCharacters, account.size());
+
+		showCharacter(character, main, current, maxCharacters, account.size());
+		if (!announce)
+		{
+			return;
+		}
 
 		if (main == null)
 		{
@@ -584,7 +670,7 @@ public class OsrsEventsPlugin extends Plugin
 			if (config.chatOtherCharacter())
 			{
 				chat("You are logged in as " + character + ", which is not on your account. Drops from it are not sent. "
-					+ whyNotAdded(identity == null ? null : identity.reason, Math.max(events.maxCharacters, account.size())));
+					+ whyNotAdded(notAddedReason, maxCharacters));
 			}
 			return;
 		}
@@ -610,6 +696,28 @@ public class OsrsEventsPlugin extends Plugin
 		else
 		{
 			chat("Connected as " + as + ". Watching " + watch.size() + " names in " + eventCount + (eventCount == 1 ? " event." : " events."));
+		}
+	}
+
+	private void showCharacter(String character, String main, ApiModels.OsrsCharacter current, int maxCharacters, int held)
+	{
+		if (character == null)
+		{
+			panel.setCharacter("Not logged in", "");
+		}
+		else if (main == null)
+		{
+			panel.setCharacter(character, "Your account has no OSRS character yet. Drops are not sent.");
+		}
+		else if (current == null)
+		{
+			panel.setCharacter(character, "Not on your account, so drops are not sent. " + whyNotAdded(notAddedReason, maxCharacters));
+		}
+		else
+		{
+			panel.setCharacter(character, (current.main ? "Main" : "Alt of " + main)
+				+ (current.proven ? "" : ", not proven yet")
+				+ ". Your account holds " + held + " of " + maxCharacters + " characters.");
 		}
 	}
 
@@ -777,12 +885,13 @@ public class OsrsEventsPlugin extends Plugin
 
 	private void announce(ApiModels.Claim claim)
 	{
+		boolean pending = "PENDING".equals(claim.status);
+		panel.addRecent("Claimed " + (claim.label != null ? claim.label : claim.name) + " in " + claim.eventTitle + " - " + (pending ? "waiting for review" : "approved"));
+
 		if (!config.chatClaims())
 		{
 			return;
 		}
-
-		boolean pending = "PENDING".equals(claim.status);
 
 		ChatMessageBuilder message = line()
 			.append(ChatColorType.NORMAL).append("Claimed ")
@@ -804,6 +913,8 @@ public class OsrsEventsPlugin extends Plugin
 
 	private void announce(ApiModels.Progress progress)
 	{
+		panel.addRecent((progress.label != null ? progress.label : String.valueOf(progress.name)) + " " + progress.done + " / " + progress.requiredCount + " in " + progress.eventTitle);
+
 		if (!config.chatClaims())
 		{
 			return;

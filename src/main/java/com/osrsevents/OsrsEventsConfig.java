@@ -47,6 +47,17 @@ public interface OsrsEventsConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "showPanel",
+		name = "Show side panel",
+		description = "An OSRS Events button in the sidebar: connection, your character, what is being watched and recent claims",
+		position = 1
+	)
+	default boolean showPanel()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "token",
 		name = "Plugin code",
 		description = "The code from your settings page on osrs-events",

@@ -94,7 +94,16 @@ final class ApiModels
 
 	static class EventInfo
 	{
-		List<Object> targets;
+		String title;
+		String url;
+		List<Target> targets;
+	}
+
+	/** A square or tile the plugin can complete right now. */
+	static class Target
+	{
+		String label;
+		String name;
 	}
 
 	static class Verdict
