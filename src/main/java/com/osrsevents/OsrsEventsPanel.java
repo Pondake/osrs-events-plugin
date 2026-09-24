@@ -9,6 +9,9 @@ import java.awt.event.MouseEvent;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Deque;
 import java.util.List;
 import javax.swing.BoxLayout;
@@ -66,6 +69,9 @@ class OsrsEventsPanel extends PluginPanel
 	private final JPanel events = column();
 	private final JPanel recent = column();
 	private final Deque<Recent> recentRows = new ArrayDeque<>();
+	/** Events whose targets are shown; the rest are folded. Survives a refresh. */
+	private final Set<String> expanded = new HashSet<>();
+	private List<ApiModels.EventInfo> shownEvents;
 
 	OsrsEventsPanel(Runnable checkConnection)
 	{
@@ -108,12 +114,13 @@ class OsrsEventsPanel extends PluginPanel
 		renderRecent();
 	}
 
-	void setStatus(String text, boolean ok)
+	/** @param ok green when true, red when false, grey when null: nothing wrong, nothing to do yet */
+	void setStatus(String text, Boolean ok)
 	{
 		SwingUtilities.invokeLater(() ->
 		{
 			status.setText(html("● " + text));
-			status.setForeground(ok ? ColorScheme.PROGRESS_COMPLETE_COLOR : ColorScheme.PROGRESS_ERROR_COLOR);
+			status.setForeground(ok == null ? ColorScheme.LIGHT_GRAY_COLOR : ok ? ColorScheme.PROGRESS_COMPLETE_COLOR : ColorScheme.PROGRESS_ERROR_COLOR);
 		});
 	}
 
@@ -131,47 +138,66 @@ class OsrsEventsPanel extends PluginPanel
 	{
 		SwingUtilities.invokeLater(() ->
 		{
-			events.removeAll();
+			shownEvents = list;
+			renderEvents();
+		});
+	}
 
-			boolean any = false;
-			if (list != null)
+	/**
+	 * Every event the player is in, one row each, with its open squares or
+	 * tiles folded under it. An event with nothing open still gets its row,
+	 * so the list says which events the account plays and not only which
+	 * have work left. The chevron folds; the title opens the event.
+	 */
+	private void renderEvents()
+	{
+		events.removeAll();
+
+		List<ApiModels.EventInfo> list = shownEvents;
+		if (list == null || list.isEmpty())
+		{
+			events.add(row(0, "", "Not in any running bingo or board", "", ColorScheme.LIGHT_GRAY_COLOR, null));
+		}
+		else
+		{
+			for (ApiModels.EventInfo event : list)
 			{
-				for (ApiModels.EventInfo event : list)
-				{
-					if (event.targets == null || event.targets.isEmpty())
-					{
-						continue;
-					}
-					any = true;
-					events.add(eventRow(event));
+				List<ApiModels.Target> targets = event.targets == null ? Collections.emptyList() : event.targets;
+				boolean open = expanded.contains(event.id);
+				events.add(eventRow(event, targets.size(), open));
 
-					int shown = Math.min(event.targets.size(), MAX_TARGETS_SHOWN);
-					for (int i = 0; i < shown; i++)
-					{
-						ApiModels.Target target = event.targets.get(i);
-						String label = target.label != null ? target.label : String.valueOf(target.name);
-						events.add(row(i,
-							"bingo_square".equals(target.kind) ? "" : String.valueOf(target.position),
-							label,
-							need(target),
-							ColorScheme.LIGHT_GRAY_COLOR,
-							target.name != null && !target.name.equals(label) ? label + " (" + target.name + ")" : label));
-					}
-					if (event.targets.size() > shown)
-					{
-						events.add(row(shown, "", "+ " + (event.targets.size() - shown) + " more on the site", "", ColorScheme.LIGHT_GRAY_COLOR, null));
-					}
+				if (!open)
+				{
+					continue;
+				}
+				if (targets.isEmpty())
+				{
+					events.add(row(0, "", "Nothing the plugin can complete", "", ColorScheme.LIGHT_GRAY_COLOR,
+						"No open square or tile that links a wiki page"));
+					continue;
+				}
+
+				int shown = Math.min(targets.size(), MAX_TARGETS_SHOWN);
+				for (int i = 0; i < shown; i++)
+				{
+					ApiModels.Target target = targets.get(i);
+					String label = target.label != null ? target.label : String.valueOf(target.name);
+					events.add(row(i,
+						"bingo_square".equals(target.kind) ? "" : String.valueOf(target.position),
+						label,
+						need(target),
+						ColorScheme.LIGHT_GRAY_COLOR,
+						target.name != null && !target.name.equals(label) ? label + " (" + target.name + ")" : label));
+				}
+				if (targets.size() > shown)
+				{
+					events.add(row(shown, "", "+ " + (targets.size() - shown) + " more on the site", "", ColorScheme.LIGHT_GRAY_COLOR, null));
 				}
 			}
+		}
 
-			if (!any)
-			{
-				events.add(row(0, "", "Nothing open to complete", "", ColorScheme.LIGHT_GRAY_COLOR, null));
-			}
-
-			events.revalidate();
-			events.repaint();
-		});
+		events.revalidate();
+		events.repaint();
 	}
 
 	/** @param colour of the result: approved, waiting, rejected or plain progress */
@@ -219,41 +245,68 @@ class OsrsEventsPanel extends PluginPanel
 		return "";
 	}
 
-	/** The event's own row: its title, and its page on the site on a click. */
-	private JComponent eventRow(ApiModels.EventInfo event)
+	/**
+	 * The event's own row. The chevron on the left folds its targets in or
+	 * out; the rest of the row opens the event on the site. The right column
+	 * counts what is open.
+	 */
+	private JComponent eventRow(ApiModels.EventInfo event, int open, boolean expandedNow)
 	{
-		String type = "BINGO".equals(event.type) ? "Bingo" : "SNAKES_LADDERS".equals(event.type) ? "S&L" : "";
-		JPanel row = row(-1, "", String.valueOf(event.title), type, ColorScheme.BRAND_ORANGE, null);
+		String type = "BINGO".equals(event.type) ? "Bingo" : "SNAKES_LADDERS".equals(event.type) ? "Board" : "Event";
+		JPanel row = row(-1, expandedNow ? "▾" : "▸", String.valueOf(event.title), open + " open",
+			open > 0 ? ColorScheme.BRAND_ORANGE : ColorScheme.LIGHT_GRAY_COLOR, null);
 		row.setBackground(ColorScheme.MEDIUM_GRAY_COLOR);
-		((JLabel) ((BorderLayout) row.getLayout()).getLayoutComponent(BorderLayout.CENTER)).setFont(FontManager.getRunescapeBoldFont());
+		BorderLayout layout = (BorderLayout) row.getLayout();
+		JLabel chevron = (JLabel) layout.getLayoutComponent(BorderLayout.WEST);
+		JLabel title = (JLabel) layout.getLayoutComponent(BorderLayout.CENTER);
+		title.setFont(FontManager.getRunescapeBoldFont());
+		chevron.setForeground(Color.WHITE);
 
-		if (event.url != null && OsrsEventsApi.baseUrl(event.url) != null)
+		chevron.setToolTipText(expandedNow ? "Hide what is open" : "Show what is open");
+		chevron.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		chevron.addMouseListener(hover(row, () ->
 		{
-			row.setToolTipText("Open " + event.title + " on the site");
-			row.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-			row.addMouseListener(new MouseAdapter()
+			if (!expanded.remove(event.id))
 			{
-				@Override
-				public void mouseClicked(MouseEvent e)
-				{
-					LinkBrowser.browse(event.url);
-				}
+				expanded.add(event.id);
+			}
+			renderEvents();
+		}));
 
-				@Override
-				public void mouseEntered(MouseEvent e)
-				{
-					row.setBackground(ColorScheme.DARK_GRAY_HOVER_COLOR);
-				}
-
-				@Override
-				public void mouseExited(MouseEvent e)
-				{
-					row.setBackground(ColorScheme.MEDIUM_GRAY_COLOR);
-				}
-			});
+		boolean linked = event.url != null && OsrsEventsApi.baseUrl(event.url) != null;
+		row.setToolTipText(type + (linked ? " - click to open " + event.title + " on the site" : ""));
+		if (linked)
+		{
+			row.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+			row.addMouseListener(hover(row, () -> LinkBrowser.browse(event.url)));
 		}
 
 		return row;
+	}
+
+	/** A click action with the hover colour every clickable row shows. */
+	private static MouseAdapter hover(JPanel row, Runnable onClick)
+	{
+		return new MouseAdapter()
+		{
+			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				onClick.run();
+			}
+
+			@Override
+			public void mouseEntered(MouseEvent e)
+			{
+				row.setBackground(ColorScheme.DARK_GRAY_HOVER_COLOR);
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e)
+			{
+				row.setBackground(ColorScheme.MEDIUM_GRAY_COLOR);
+			}
+		};
 	}
 
 	/** The column titles above a table. */

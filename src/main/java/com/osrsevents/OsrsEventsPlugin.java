@@ -118,6 +118,8 @@ public class OsrsEventsPlugin extends Plugin
 	private final Map<String, Integer> activityTicks = new HashMap<>();
 	private final Map<String, Integer> activityCounts = new HashMap<>();
 	private boolean loginPending = true;
+	/** Logged in, waiting for the local player's name before the first request. */
+	private boolean connectPending;
 	private final Set<String> seenVerdicts = new HashSet<>();
 	private boolean verdictsSeeded;
 
@@ -151,7 +153,7 @@ public class OsrsEventsPlugin extends Plugin
 		if (client.getGameState() == GameState.LOGGED_IN)
 		{
 			loginPending = false;
-			refreshWatch(config.chatStatus());
+			connectPending = true;
 		}
 	}
 
@@ -236,6 +238,10 @@ public class OsrsEventsPlugin extends Plugin
 		{
 			panel.setStatus("Paste your plugin code in the settings. The Server must start with https://.", false);
 		}
+		else if (client.getGameState() != GameState.LOGGED_IN)
+		{
+			panel.setStatus("Log in to the game to connect.", null);
+		}
 		else
 		{
 			panel.setStatus("Connecting…", true);
@@ -254,20 +260,32 @@ public class OsrsEventsPlugin extends Plugin
 			notAddedReason = null;
 			if (state == GameState.LOGIN_SCREEN)
 			{
+				connectPending = false;
 				panel.setCharacter("Not logged in", "");
+				showStatus();
 			}
 		}
 		// Loading screens also end in LOGGED_IN; only the first one after a login announces.
 		else if (state == GameState.LOGGED_IN && loginPending)
 		{
 			loginPending = false;
-			refreshWatch(config.chatStatus());
+			connectPending = true;
 		}
 	}
 
 	@Subscribe
 	public void onGameTick(GameTick tick)
 	{
+		// The login announces once the character is known: before that the
+		// panel and chat would say "not logged in" to somebody who is.
+		Player local = client.getLocalPlayer();
+		if (connectPending && local != null && local.getName() != null)
+		{
+			connectPending = false;
+			ticks = 0;
+			refreshWatch(config.chatStatus());
+		}
+
 		ticks++;
 		if (ticks >= refreshEveryTicks())
 		{

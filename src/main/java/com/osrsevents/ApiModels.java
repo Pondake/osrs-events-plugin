@@ -94,6 +94,7 @@ final class ApiModels
 
 	static class EventInfo
 	{
+		String id;
 		String title;
 		/** BINGO or SNAKES_LADDERS. */
 		String type;
