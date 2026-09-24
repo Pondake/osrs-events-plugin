@@ -34,5 +34,28 @@ public class OsrsEventsApiTest
 
 		ApiModels.EventsResponse events = gson.fromJson("{\"rsn\":\"Main Sample\",\"max_characters\":5,\"characters\":[]}", ApiModels.EventsResponse.class);
 		assertEquals(5, events.maxCharacters);
+		assertNull(events.races);
+	}
+
+	@Test
+	public void racesReadAsTheServerSendsThem()
+	{
+		ApiModels.EventsResponse events = new Gson().fromJson("{\"races\":[{\"id\":\"r\",\"title\":\"Boss of the Month\",\"type\":\"DROP_RACE\","
+			+ "\"metric\":\"Zulrah\",\"unit\":\"kills\",\"rank\":null,\"entrants\":6,\"gained\":0,\"live\":0,\"leader\":null,"
+			+ "\"ends_at\":\"2026-09-30T23:59:59+00:00\"}]}", ApiModels.EventsResponse.class);
+
+		ApiModels.Race race = events.races.get(0);
+		assertNull(race.rank);
+		assertNull(race.leader);
+		assertEquals("2026-09-30T23:59:59+00:00", race.endsAt);
+	}
+
+	@Test
+	public void amountsShortenXpButNotKills()
+	{
+		assertEquals("309 kc", OsrsEventsPanel.amount(309, "kills"));
+		assertEquals("1.35M xp", OsrsEventsPanel.amount(1_354_945, "xp"));
+		assertEquals("41K xp", OsrsEventsPanel.amount(41_250, "xp"));
+		assertEquals("950 xp", OsrsEventsPanel.amount(950, "xp"));
 	}
 }

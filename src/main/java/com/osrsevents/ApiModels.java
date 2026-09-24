@@ -88,6 +88,8 @@ final class ApiModels
 		@SerializedName("max_characters")
 		int maxCharacters;
 		List<EventInfo> events;
+		/** Running races the account is in. Null from a server that predates them. */
+		List<Race> races;
 		List<Verdict> reviews;
 		List<String> watch;
 	}
@@ -100,6 +102,29 @@ final class ApiModels
 		String type;
 		String url;
 		List<Target> targets;
+	}
+
+	/** A drop or skill race and where the account stands in it: its best character, as the race page shows. */
+	static class Race
+	{
+		String id;
+		String title;
+		/** DROP_RACE or SKILL_RACE. */
+		String type;
+		String url;
+		/** The boss or skill, as a label. */
+		String metric;
+		/** kills or xp. */
+		String unit;
+		/** Null while nothing has been measured. */
+		Integer rank;
+		int entrants;
+		long gained;
+		long live;
+		/** Gained of rank 1; null when nobody is ranked. */
+		Long leader;
+		@SerializedName("ends_at")
+		String endsAt;
 	}
 
 	/** A square or tile the plugin can complete right now. */

@@ -7,6 +7,9 @@ import java.awt.Dimension;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
+import java.util.Locale;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
 import java.util.Collections;
@@ -68,6 +71,8 @@ class OsrsEventsPanel extends PluginPanel
 	private final JLabel characterDetail = wrapped("", ColorScheme.LIGHT_GRAY_COLOR);
 	private final JPanel events = column();
 	private final JPanel recent = column();
+	private final JPanel races = column();
+	private final JPanel raceSection = column();
 	private final Deque<Recent> recentRows = new ArrayDeque<>();
 	/** Events whose targets are shown; the rest are folded. Survives a refresh. */
 	private final Set<String> expanded = new HashSet<>();
@@ -104,6 +109,12 @@ class OsrsEventsPanel extends PluginPanel
 		content.add(spacer(10));
 		content.add(header("#", "Watching", "Need"));
 		content.add(events);
+
+		raceSection.add(spacer(10));
+		raceSection.add(header("Rank", "Races", "Gained"));
+		raceSection.add(races);
+		raceSection.setVisible(false);
+		content.add(raceSection);
 
 		content.add(spacer(10));
 		content.add(header("Time", "Recent", "Result"));
@@ -198,6 +209,112 @@ class OsrsEventsPanel extends PluginPanel
 
 		events.revalidate();
 		events.repaint();
+	}
+
+	/** @param list null hides the table: a server that predates races says nothing about them */
+	void setRaces(List<ApiModels.Race> list)
+	{
+		SwingUtilities.invokeLater(() ->
+		{
+			races.removeAll();
+			raceSection.setVisible(list != null);
+
+			if (list != null && list.isEmpty())
+			{
+				races.add(row(0, "", "Not in any running race", "", ColorScheme.LIGHT_GRAY_COLOR, null));
+			}
+			if (list != null)
+			{
+				for (ApiModels.Race race : list)
+				{
+					races.add(raceRow(race));
+					races.add(row(0, "", raceDetail(race), "", ColorScheme.LIGHT_GRAY_COLOR,
+						race.live > 0 ? amount(race.live, race.unit) + " of it reported live by the plugin" : null));
+				}
+			}
+
+			races.revalidate();
+			races.repaint();
+		});
+	}
+
+	/** Title, rank of entrants and what the account gained; opens the race on the site. */
+	private JComponent raceRow(ApiModels.Race race)
+	{
+		String rank = race.rank == null ? "-" : race.rank + "/" + race.entrants;
+		JPanel row = row(-1, rank, String.valueOf(race.title), amount(race.gained, race.unit), ColorScheme.BRAND_ORANGE, null);
+		row.setBackground(ColorScheme.MEDIUM_GRAY_COLOR);
+		BorderLayout layout = (BorderLayout) row.getLayout();
+		((JLabel) layout.getLayoutComponent(BorderLayout.CENTER)).setFont(FontManager.getRunescapeBoldFont());
+		((JLabel) layout.getLayoutComponent(BorderLayout.WEST)).setForeground(Color.WHITE);
+
+		String what = "DROP_RACE".equals(race.type) ? "Drop race" : "Skill race";
+		if (race.url != null && OsrsEventsApi.baseUrl(race.url) != null)
+		{
+			row.setToolTipText(what + " - click to open " + race.title + " on the site");
+			row.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+			row.addMouseListener(hover(row, () -> LinkBrowser.browse(race.url)));
+		}
+		else
+		{
+			row.setToolTipText(what);
+		}
+
+		return row;
+	}
+
+	/** "Zulrah · 309 behind · ends 30 Sep" */
+	private static String raceDetail(ApiModels.Race race)
+	{
+		StringBuilder detail = new StringBuilder(String.valueOf(race.metric));
+		if (race.rank != null && race.rank == 1)
+		{
+			detail.append(" · leading");
+		}
+		else if (race.leader != null)
+		{
+			detail.append(" · ").append(amount(Math.max(race.leader - race.gained, 0), race.unit)).append(" behind");
+		}
+		String ends = endDate(race.endsAt);
+		if (ends != null)
+		{
+			detail.append(" · ends ").append(ends);
+		}
+		return detail.toString();
+	}
+
+	/** Kills as they are, xp shortened: "309 kc", "1.35M xp". */
+	static String amount(long value, String unit)
+	{
+		if (!"xp".equals(unit))
+		{
+			return value + " kc";
+		}
+		if (value >= 1_000_000)
+		{
+			return String.format(Locale.ROOT, "%.2fM xp", value / 1_000_000d);
+		}
+		if (value >= 10_000)
+		{
+			return (value / 1000) + "K xp";
+		}
+		return value + " xp";
+	}
+
+	private static String endDate(String iso)
+	{
+		if (iso == null)
+		{
+			return null;
+		}
+		try
+		{
+			return OffsetDateTime.parse(iso).format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH));
+		}
+		catch (DateTimeParseException e)
+		{
+			return null;
+		}
 	}
 
 	/** @param colour of the result: approved, waiting, rejected or plain progress */

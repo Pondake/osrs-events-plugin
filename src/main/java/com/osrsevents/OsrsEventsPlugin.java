@@ -545,6 +545,7 @@ public class OsrsEventsPlugin extends Plugin
 				log.debug("osrs-events watching {} names", watch.size());
 				panel.setStatus("Connected to " + config.serverUrl().trim() + ".", true);
 				panel.setEvents(events == null ? null : events.events);
+				panel.setRaces(events == null ? null : events.races);
 				if (events != null)
 				{
 					announceVerdicts(events.reviews);
@@ -559,6 +560,7 @@ public class OsrsEventsPlugin extends Plugin
 			}
 
 			panel.setEvents(null);
+			panel.setRaces(null);
 			panel.setStatus(status == 401 ? "The plugin code was not recognised. Create a new one in your settings on the site."
 				: status == 404 ? "The plugin is switched off on " + config.serverUrl().trim() + "."
 				: status == -1 ? "No answer from " + config.serverUrl().trim() + "."
