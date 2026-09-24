@@ -544,8 +544,8 @@ public class OsrsEventsPlugin extends Plugin
 				characters = charactersOf(events);
 				log.debug("osrs-events watching {} names", watch.size());
 				panel.setStatus("Connected to " + config.serverUrl().trim() + ".", true);
-				panel.setEvents(events == null ? null : events.events);
-				panel.setRaces(events == null ? null : events.races);
+				panel.setEvents(events == null ? null : events.events, events == null ? null : events.otherEvents);
+				panel.setRaces(events == null ? null : events.races, events == null ? null : events.otherEvents);
 				if (events != null)
 				{
 					announceVerdicts(events.reviews);
@@ -559,8 +559,8 @@ public class OsrsEventsPlugin extends Plugin
 				stop(status, body);
 			}
 
-			panel.setEvents(null);
-			panel.setRaces(null);
+			panel.setEvents(null, null);
+			panel.setRaces(null, null);
 			panel.setStatus(status == 401 ? "The plugin code was not recognised. Create a new one in your settings on the site."
 				: status == 404 ? "The plugin is switched off on " + config.serverUrl().trim() + "."
 				: status == -1 ? "No answer from " + config.serverUrl().trim() + "."
@@ -870,6 +870,12 @@ public class OsrsEventsPlugin extends Plugin
 						response.claims.forEach(this::announce);
 						refreshWatch(false);
 					}
+
+					// After the claims: the square is said first, then what it won.
+					if (response.finishes != null)
+					{
+						response.finishes.forEach(this::announce);
+					}
 				}
 			}
 			else if (status == 401 || status == 404)
@@ -932,6 +938,44 @@ public class OsrsEventsPlugin extends Plugin
 			pending ? "waiting for review" : "approved");
 
 		chat(message);
+	}
+
+	private void announce(ApiModels.FinishNews finish)
+	{
+		String place = ordinal(finish.place) + " place";
+		panel.addRecent(String.valueOf(finish.eventTitle), String.valueOf(finish.eventTitle),
+			ordinal(finish.place), OsrsEventsPanel.GOLD);
+
+		if (!config.chatClaims())
+		{
+			return;
+		}
+
+		ChatMessageBuilder message = line().append(ChatColorType.NORMAL)
+			.append(finish.team != null ? "Your team " : "You ");
+		if (finish.team != null)
+		{
+			message.append(config.accent(), finish.team).append(ChatColorType.NORMAL).append(" ");
+		}
+		message.append("finished ")
+			.append(config.accent(), String.valueOf(finish.eventTitle))
+			.append(ChatColorType.NORMAL).append(" - ")
+			.append(config.approvedColour(), place + "!");
+		if (finish.provisional)
+		{
+			message.append(ChatColorType.NORMAL).append(" For now: claims ahead of yours are still in review.");
+		}
+
+		chat(message);
+	}
+
+	/** 1st, 2nd, 3rd, 4th, 11th, 21st. */
+	static String ordinal(int n)
+	{
+		int lastTwo = n % 100;
+		String suffix = lastTwo >= 11 && lastTwo <= 13 ? "th"
+			: n % 10 == 1 ? "st" : n % 10 == 2 ? "nd" : n % 10 == 3 ? "rd" : "th";
+		return n + suffix;
 	}
 
 	private void announce(ApiModels.Progress progress)

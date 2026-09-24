@@ -1,7 +1,9 @@
 package com.osrsevents;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import com.google.gson.Gson;
 import org.junit.Test;
 
@@ -48,6 +50,43 @@ public class OsrsEventsApiTest
 		assertNull(race.rank);
 		assertNull(race.leader);
 		assertEquals("2026-09-30T23:59:59+00:00", race.endsAt);
+	}
+
+	@Test
+	public void finishesAndOtherEventsReadAsTheServerSendsThem()
+	{
+		Gson gson = new Gson();
+
+		ApiModels.CompletionResponse answer = gson.fromJson("{\"duplicate\":false,\"claims\":[],\"progress\":[],"
+			+ "\"finishes\":[{\"event_id\":\"e\",\"event_title\":\"Sample bingo\",\"place\":2,\"provisional\":true,\"team\":\"Sample team\"}]}",
+			ApiModels.CompletionResponse.class);
+		ApiModels.FinishNews finish = answer.finishes.get(0);
+		assertEquals("Sample bingo", finish.eventTitle);
+		assertEquals(2, finish.place);
+		assertTrue(finish.provisional);
+		assertEquals("Sample team", finish.team);
+
+		ApiModels.EventsResponse events = gson.fromJson("{\"events\":[{\"id\":\"e\",\"finish\":{\"place\":1,\"provisional\":false,\"team\":null}}],"
+			+ "\"other_events\":[{\"id\":\"r\",\"type\":\"DROP_RACE\",\"status\":\"ended\",\"starts_at\":null,\"ends_at\":\"2026-09-30T23:59:59+00:00\","
+			+ "\"finish\":null,\"rank\":3,\"entrants\":12},{\"id\":\"b\",\"type\":\"BINGO\",\"status\":\"paused\",\"rank\":null}]}",
+			ApiModels.EventsResponse.class);
+		assertEquals(1, events.events.get(0).finish.place);
+		assertTrue(events.otherEvents.get(0).isRace());
+		assertEquals(Integer.valueOf(3), events.otherEvents.get(0).rank);
+		assertFalse(events.otherEvents.get(1).isRace());
+		assertEquals("paused", events.otherEvents.get(1).status);
+	}
+
+	@Test
+	public void placesReadAsOrdinals()
+	{
+		assertEquals("1st", OsrsEventsPlugin.ordinal(1));
+		assertEquals("2nd", OsrsEventsPlugin.ordinal(2));
+		assertEquals("3rd", OsrsEventsPlugin.ordinal(3));
+		assertEquals("4th", OsrsEventsPlugin.ordinal(4));
+		assertEquals("11th", OsrsEventsPlugin.ordinal(11));
+		assertEquals("12th", OsrsEventsPlugin.ordinal(12));
+		assertEquals("21st", OsrsEventsPlugin.ordinal(21));
 	}
 
 	@Test

@@ -42,7 +42,9 @@ class OsrsEventsPanel extends PluginPanel
 	private static final int MAX_RECENT = 15;
 	private static final int MAX_TARGETS_SHOWN = 20;
 	private static final int LEFT_COLUMN = 34;
-	private static final int RIGHT_COLUMN = 52;
+	private static final int RIGHT_COLUMN = 64;
+	/** A place on a podium. */
+	static final Color GOLD = new Color(0xE8B923);
 	private static final int ROW_HEIGHT = 22;
 	private static final int TEXT_WIDTH = 190;
 	private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
@@ -77,6 +79,7 @@ class OsrsEventsPanel extends PluginPanel
 	/** Events whose targets are shown; the rest are folded. Survives a refresh. */
 	private final Set<String> expanded = new HashSet<>();
 	private List<ApiModels.EventInfo> shownEvents;
+	private List<ApiModels.OtherEvent> shownOthers;
 
 	OsrsEventsPanel(Runnable checkConnection)
 	{
@@ -107,7 +110,7 @@ class OsrsEventsPanel extends PluginPanel
 		content.add(who);
 
 		content.add(spacer(10));
-		content.add(header("#", "Watching", "Need"));
+		content.add(header("#", "Events", "Open"));
 		content.add(events);
 
 		raceSection.add(spacer(10));
@@ -121,7 +124,7 @@ class OsrsEventsPanel extends PluginPanel
 		content.add(recent);
 
 		add(content, BorderLayout.NORTH);
-		setEvents(null);
+		setEvents(null, null);
 		renderRecent();
 	}
 
@@ -145,11 +148,13 @@ class OsrsEventsPanel extends PluginPanel
 		});
 	}
 
-	void setEvents(List<ApiModels.EventInfo> list)
+	/** @param others events that are not running; the races among them go to the race table */
+	void setEvents(List<ApiModels.EventInfo> list, List<ApiModels.OtherEvent> others)
 	{
 		SwingUtilities.invokeLater(() ->
 		{
 			shownEvents = list;
+			shownOthers = others;
 			renderEvents();
 		});
 	}
@@ -165,11 +170,12 @@ class OsrsEventsPanel extends PluginPanel
 		events.removeAll();
 
 		List<ApiModels.EventInfo> list = shownEvents;
-		if (list == null || list.isEmpty())
+		boolean anyOther = shownOthers != null && shownOthers.stream().anyMatch(o -> !o.isRace());
+		if ((list == null || list.isEmpty()) && !anyOther)
 		{
 			events.add(row(0, "", "Not in any running bingo or board", "", ColorScheme.LIGHT_GRAY_COLOR, null));
 		}
-		else
+		else if (list != null)
 		{
 			for (ApiModels.EventInfo event : list)
 			{
@@ -207,19 +213,87 @@ class OsrsEventsPanel extends PluginPanel
 			}
 		}
 
+		if (shownOthers != null)
+		{
+			shownOthers.stream().filter(o -> !o.isRace()).forEach(o -> events.add(otherRow(o)));
+		}
+
 		events.revalidate();
 		events.repaint();
 	}
 
+	/**
+	 * An event that is not running, in grey: it claims nothing, but it is
+	 * listed so a player sees the event their clan set up before it starts,
+	 * while it is paused, and for a week after it ended. Opens on the site.
+	 */
+	private JComponent otherRow(ApiModels.OtherEvent other)
+	{
+		String right;
+		Color colour = ColorScheme.LIGHT_GRAY_COLOR;
+		String tooltip;
+
+		if ("upcoming".equals(other.status))
+		{
+			String starts = endDate(other.startsAt);
+			right = starts == null ? "Soon" : starts;
+			tooltip = starts == null ? "Has not started yet" : "Starts " + starts;
+		}
+		else if ("paused".equals(other.status))
+		{
+			right = "Paused";
+			tooltip = "Paused by the host: nothing is claimed until it resumes";
+		}
+		else if (other.finish != null)
+		{
+			right = OsrsEventsPlugin.ordinal(other.finish.place);
+			colour = GOLD;
+			tooltip = "Ended - you finished " + right + (other.finish.team != null ? " with " + other.finish.team : "");
+		}
+		else if (other.isRace() && other.rank != null)
+		{
+			right = other.rank + "/" + (other.entrants == null ? "?" : other.entrants);
+			tooltip = "Ended - final rank " + right;
+		}
+		else
+		{
+			right = "Ended";
+			tooltip = "Ended";
+		}
+
+		JPanel row = row(-1, "", String.valueOf(other.title), right, colour, null);
+		row.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		((JLabel) ((BorderLayout) row.getLayout()).getLayoutComponent(BorderLayout.CENTER)).setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		linkRow(row, other.url, other.title, tooltip, ColorScheme.DARKER_GRAY_COLOR);
+
+		return row;
+	}
+
+	/** Opens the event on the site on a click, with the hover every clickable row has. */
+	private static void linkRow(JPanel row, String url, String title, String tooltip, Color background)
+	{
+		if (url != null && OsrsEventsApi.baseUrl(url) != null)
+		{
+			row.setToolTipText(tooltip + " - click to open " + title + " on the site");
+			row.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+			row.addMouseListener(hover(row, () -> LinkBrowser.browse(url), background));
+		}
+		else
+		{
+			row.setToolTipText(tooltip);
+		}
+	}
+
 	/** @param list null hides the table: a server that predates races says nothing about them */
-	void setRaces(List<ApiModels.Race> list)
+	void setRaces(List<ApiModels.Race> list, List<ApiModels.OtherEvent> others)
 	{
 		SwingUtilities.invokeLater(() ->
 		{
 			races.removeAll();
 			raceSection.setVisible(list != null);
+			boolean anyOther = others != null && others.stream().anyMatch(ApiModels.OtherEvent::isRace);
 
-			if (list != null && list.isEmpty())
+			if (list != null && list.isEmpty() && !anyOther)
 			{
 				races.add(row(0, "", "Not in any running race", "", ColorScheme.LIGHT_GRAY_COLOR, null));
 			}
@@ -231,6 +305,10 @@ class OsrsEventsPanel extends PluginPanel
 					races.add(row(0, "", raceDetail(race), "", ColorScheme.LIGHT_GRAY_COLOR,
 						race.live > 0 ? amount(race.live, race.unit) + " of it reported live by the plugin" : null));
 				}
+			}
+			if (list != null && others != null)
+			{
+				others.stream().filter(ApiModels.OtherEvent::isRace).forEach(o -> races.add(otherRow(o)));
 			}
 
 			races.revalidate();
@@ -370,8 +448,12 @@ class OsrsEventsPanel extends PluginPanel
 	private JComponent eventRow(ApiModels.EventInfo event, int open, boolean expandedNow)
 	{
 		String type = "BINGO".equals(event.type) ? "Bingo" : "SNAKES_LADDERS".equals(event.type) ? "Board" : "Event";
-		JPanel row = row(-1, expandedNow ? "▾" : "▸", String.valueOf(event.title), open + " open",
-			open > 0 ? ColorScheme.BRAND_ORANGE : ColorScheme.LIGHT_GRAY_COLOR, null);
+		// A finish outranks the open count: winning is the news.
+		String right = event.finish != null
+			? OsrsEventsPlugin.ordinal(event.finish.place) + (event.finish.provisional ? "?" : "")
+			: open + " open";
+		JPanel row = row(-1, expandedNow ? "▾" : "▸", String.valueOf(event.title), right,
+			event.finish != null ? GOLD : open > 0 ? ColorScheme.BRAND_ORANGE : ColorScheme.LIGHT_GRAY_COLOR, null);
 		row.setBackground(ColorScheme.MEDIUM_GRAY_COLOR);
 		BorderLayout layout = (BorderLayout) row.getLayout();
 		JLabel chevron = (JLabel) layout.getLayoutComponent(BorderLayout.WEST);
@@ -390,19 +472,24 @@ class OsrsEventsPanel extends PluginPanel
 			renderEvents();
 		}));
 
-		boolean linked = event.url != null && OsrsEventsApi.baseUrl(event.url) != null;
-		row.setToolTipText(type + (linked ? " - click to open " + event.title + " on the site" : ""));
-		if (linked)
+		String tooltip = type + ", " + open + " open";
+		if (event.finish != null)
 		{
-			row.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-			row.addMouseListener(hover(row, () -> LinkBrowser.browse(event.url)));
+			tooltip += " - " + (event.finish.team != null ? event.finish.team : "you") + " finished " + OsrsEventsPlugin.ordinal(event.finish.place)
+				+ (event.finish.provisional ? ", for now: claims ahead are still in review" : "");
 		}
+		linkRow(row, event.url, event.title, tooltip, ColorScheme.MEDIUM_GRAY_COLOR);
 
 		return row;
 	}
 
-	/** A click action with the hover colour every clickable row shows. */
 	private static MouseAdapter hover(JPanel row, Runnable onClick)
+	{
+		return hover(row, onClick, ColorScheme.MEDIUM_GRAY_COLOR);
+	}
+
+	/** A click action with the hover colour every clickable row shows. */
+	private static MouseAdapter hover(JPanel row, Runnable onClick, Color background)
 	{
 		return new MouseAdapter()
 		{
@@ -421,7 +508,7 @@ class OsrsEventsPanel extends PluginPanel
 			@Override
 			public void mouseExited(MouseEvent e)
 			{
-				row.setBackground(ColorScheme.MEDIUM_GRAY_COLOR);
+				row.setBackground(background);
 			}
 		};
 	}

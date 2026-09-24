@@ -90,6 +90,9 @@ final class ApiModels
 		List<EventInfo> events;
 		/** Running races the account is in. Null from a server that predates them. */
 		List<Race> races;
+		/** Null from a server that predates it. */
+		@SerializedName("other_events")
+		List<OtherEvent> otherEvents;
 		List<Verdict> reviews;
 		List<String> watch;
 	}
@@ -102,6 +105,53 @@ final class ApiModels
 		String type;
 		String url;
 		List<Target> targets;
+		/** The account's (or its team's) finish, null when it has not finished. */
+		Finish finish;
+	}
+
+	/** A place on an event's podium. */
+	static class Finish
+	{
+		int place;
+		/** Claims ahead of it are still in review, so the place can still change. */
+		boolean provisional;
+		/** The team that finished, null for a solo event. */
+		String team;
+	}
+
+	/** A finish a report just caused, from POST /completions. */
+	static class FinishNews extends Finish
+	{
+		@SerializedName("event_id")
+		String eventId;
+		@SerializedName("event_title")
+		String eventTitle;
+	}
+
+	/** An event the account plays that is not running: upcoming, paused, or ended in the last week. */
+	static class OtherEvent
+	{
+		String id;
+		String title;
+		/** BINGO, SNAKES_LADDERS, DROP_RACE or SKILL_RACE. */
+		String type;
+		String url;
+		/** upcoming, paused or ended. */
+		String status;
+		@SerializedName("starts_at")
+		String startsAt;
+		@SerializedName("ends_at")
+		String endsAt;
+		/** Bingo and snakes & ladders only. */
+		Finish finish;
+		/** Races only. */
+		Integer rank;
+		Integer entrants;
+
+		boolean isRace()
+		{
+			return "DROP_RACE".equals(type) || "SKILL_RACE".equals(type);
+		}
 	}
 
 	/** A drop or skill race and where the account stands in it: its best character, as the race page shows. */
@@ -156,6 +206,8 @@ final class ApiModels
 		List<Claim> claims;
 		/** Counted targets this report moved without claiming: "2 / 5". */
 		List<Progress> progress;
+		/** Events this report made the account (or its team) finish. */
+		List<FinishNews> finishes;
 	}
 
 	static class Progress
