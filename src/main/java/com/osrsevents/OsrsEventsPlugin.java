@@ -43,6 +43,7 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.loottracker.LootReceived;
 import net.runelite.client.plugins.loottracker.LootTrackerPlugin;
 import net.runelite.client.ui.ClientToolbar;
+import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.http.api.loottracker.LootRecordType;
@@ -579,7 +580,8 @@ public class OsrsEventsPlugin extends Plugin
 			}
 
 			boolean approved = "APPROVED".equals(verdict.status);
-			panel.addRecent((verdict.label == null ? "Your claim" : verdict.label) + " in " + verdict.eventTitle + " was " + (approved ? "approved" : "rejected"));
+			panel.addRecent(verdict.label == null ? "Your claim" : verdict.label, String.valueOf(verdict.eventTitle),
+				approved ? "Approved" : "Rejected", approved ? ColorScheme.PROGRESS_COMPLETE_COLOR : ColorScheme.PROGRESS_ERROR_COLOR);
 			if (!config.chatVerdicts())
 			{
 				continue;
@@ -886,7 +888,8 @@ public class OsrsEventsPlugin extends Plugin
 	private void announce(ApiModels.Claim claim)
 	{
 		boolean pending = "PENDING".equals(claim.status);
-		panel.addRecent("Claimed " + (claim.label != null ? claim.label : claim.name) + " in " + claim.eventTitle + " - " + (pending ? "waiting for review" : "approved"));
+		panel.addRecent(claim.label != null ? claim.label : String.valueOf(claim.name), String.valueOf(claim.eventTitle),
+			pending ? "Review" : "Claimed", pending ? ColorScheme.BRAND_ORANGE : ColorScheme.PROGRESS_COMPLETE_COLOR);
 
 		if (!config.chatClaims())
 		{
@@ -913,7 +916,8 @@ public class OsrsEventsPlugin extends Plugin
 
 	private void announce(ApiModels.Progress progress)
 	{
-		panel.addRecent((progress.label != null ? progress.label : String.valueOf(progress.name)) + " " + progress.done + " / " + progress.requiredCount + " in " + progress.eventTitle);
+		panel.addRecent(progress.label != null ? progress.label : String.valueOf(progress.name), String.valueOf(progress.eventTitle),
+			progress.done + " / " + progress.requiredCount, Color.WHITE);
 
 		if (!config.chatClaims())
 		{

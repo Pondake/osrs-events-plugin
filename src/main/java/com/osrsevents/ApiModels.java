@@ -95,6 +95,8 @@ final class ApiModels
 	static class EventInfo
 	{
 		String title;
+		/** BINGO or SNAKES_LADDERS. */
+		String type;
 		String url;
 		List<Target> targets;
 	}
@@ -102,8 +104,15 @@ final class ApiModels
 	/** A square or tile the plugin can complete right now. */
 	static class Target
 	{
+		/** bingo_square, or a board tile. */
+		String kind;
+		int position;
 		String label;
 		String name;
+		@SerializedName("min_quantity")
+		int minQuantity;
+		@SerializedName("required_count")
+		int requiredCount;
 	}
 
 	static class Verdict
