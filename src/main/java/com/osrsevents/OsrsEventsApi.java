@@ -24,6 +24,13 @@ class OsrsEventsApi
 {
 	private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
+	/**
+	 * Sent with every request so the server can tell which build a report came
+	 * from. Kept in step with runelite-plugin.properties by a test: the Plugin
+	 * Hub builds with its own build file, so nothing can fill it in at build time.
+	 */
+	static final String VERSION = "0.0.3";
+
 	/** status is -1 when the request never got an answer. */
 	interface Result
 	{
@@ -129,6 +136,7 @@ class OsrsEventsApi
 			.url(url)
 			.header("Authorization", "Bearer " + token)
 			.header("Accept", "application/json")
+			.header("X-Plugin-Version", VERSION)
 			.build();
 	}
 

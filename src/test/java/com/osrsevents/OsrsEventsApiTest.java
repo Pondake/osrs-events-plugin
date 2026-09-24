@@ -5,10 +5,26 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import com.google.gson.Gson;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
 import org.junit.Test;
 
 public class OsrsEventsApiTest
 {
+	@Test
+	public void sendsTheVersionThePluginHubShows() throws IOException
+	{
+		Properties properties = new Properties();
+		try (InputStream in = new FileInputStream("runelite-plugin.properties"))
+		{
+			properties.load(in);
+		}
+
+		assertEquals(properties.getProperty("version"), OsrsEventsApi.VERSION);
+	}
+
 	@Test
 	public void acceptsHttpsOnlyExceptOnThisMachine()
 	{
