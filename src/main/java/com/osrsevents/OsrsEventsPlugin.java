@@ -60,6 +60,8 @@ public class OsrsEventsPlugin extends Plugin
 	private static final int MAX_CONTEXT_ITEMS = 40;
 	/** RuneLite keeps whether a plugin is on under its lowercased class name. */
 	private static final String LOOT_TRACKER_KEY = "loottrackerplugin";
+	/** The settings that change the connection: a change reconnects and says so in chat. */
+	private static final Set<String> CONNECTION_KEYS = Set.of("enabled", "token", "serverUrl", "addAlts");
 	private static final String LOOT_TRACKER_OFF = "The Loot Tracker plugin is off, so loot from chests, minigames and pickpockets is not seen. Turn it on to have it count.";
 
 	/**
@@ -213,6 +215,13 @@ public class OsrsEventsPlugin extends Plugin
 			{
 				clientToolbar.removeNavigation(navButton);
 			}
+			return;
+		}
+
+		// Chat toggles, colours and the refresh interval are read when used;
+		// only these change who the plugin talks to, or as whom.
+		if (!CONNECTION_KEYS.contains(event.getKey()))
+		{
 			return;
 		}
 
