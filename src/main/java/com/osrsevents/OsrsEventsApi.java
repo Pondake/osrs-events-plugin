@@ -29,7 +29,7 @@ class OsrsEventsApi
 	 * from. Kept in step with runelite-plugin.properties by a test: the Plugin
 	 * Hub builds with its own build file, so nothing can fill it in at build time.
 	 */
-	static final String VERSION = "0.0.3";
+	static final String VERSION = "0.0.4";
 
 	/** status is -1 when the request never got an answer. */
 	interface Result
