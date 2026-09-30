@@ -32,16 +32,15 @@ import net.runelite.client.chat.ChatMessageBuilder;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.config.RuneLiteConfig;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.NpcLootReceived;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.ItemStack;
 import net.runelite.client.plugins.Plugin;
-import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.loottracker.LootReceived;
-import net.runelite.client.plugins.loottracker.LootTrackerPlugin;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.NavigationButton;
@@ -55,11 +54,13 @@ import okhttp3.HttpUrl;
 	description = "Auto-completes event tasks on osrs-events.com",
 	tags = {"bingo", "clan", "events"}
 )
-@PluginDependency(LootTrackerPlugin.class)
 public class OsrsEventsPlugin extends Plugin
 {
 	private static final String COLLECTION_LOG_PREFIX = "New item added to your collection log:";
 	private static final int MAX_CONTEXT_ITEMS = 40;
+	/** RuneLite keeps whether a plugin is on under its lowercased class name. */
+	private static final String LOOT_TRACKER_KEY = "loottrackerplugin";
+	private static final String LOOT_TRACKER_OFF = "The Loot Tracker plugin is off, so loot from chests, minigames and pickpockets is not seen. Turn it on to have it count.";
 
 	/**
 	 * No colours of our own. A fixed colour cannot be readable on both an
@@ -178,6 +179,15 @@ public class OsrsEventsPlugin extends Plugin
 	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
+		if (RuneLiteConfig.GROUP_NAME.equals(event.getGroup()) && LOOT_TRACKER_KEY.equals(event.getKey()))
+		{
+			if (lootTrackerOff())
+			{
+				chat(LOOT_TRACKER_OFF);
+			}
+			return;
+		}
+
 		if (!OsrsEventsConfig.GROUP.equals(event.getGroup()))
 		{
 			return;
@@ -284,6 +294,10 @@ public class OsrsEventsPlugin extends Plugin
 			connectPending = false;
 			ticks = 0;
 			refreshWatch(config.chatStatus());
+			if (config.chatStatus() && lootTrackerOff())
+			{
+				chat(LOOT_TRACKER_OFF);
+			}
 		}
 
 		ticks++;
@@ -297,6 +311,15 @@ public class OsrsEventsPlugin extends Plugin
 			retryTicks = 0;
 			sendNext();
 		}
+	}
+
+	/**
+	 * LootReceived only comes from the Loot Tracker. It is on by default, so
+	 * only an explicit "false" means the player turned it off.
+	 */
+	private boolean lootTrackerOff()
+	{
+		return "false".equals(configManager.getConfiguration(RuneLiteConfig.GROUP_NAME, LOOT_TRACKER_KEY));
 	}
 
 	/** A game tick is 0.6s; an idle player asks far less often. */
